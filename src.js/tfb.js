@@ -24,6 +24,7 @@ def("tfb_tx_pop_byte","number",["number"]);
 def("tfb_is_node","boolean",["number"]);
 def("tfb_is_controller","boolean",["number"]);
 def("tfb_send","boolean",["number","number","number"]);
+def("tfb_send_to","boolean",["number","number","number","number"]);
 def("tfb_tick","null",["number"]);
 def("tfb_get_queue_len","number",["number"]);
 def("tfb_is_bus_available","boolean",["number"]);

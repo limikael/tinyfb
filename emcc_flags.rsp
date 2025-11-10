@@ -25,6 +25,7 @@ _tfb_tx_is_available,\
 _tfb_is_device,\
 _tfb_is_controller,\
 _tfb_send,\
+_tfb_send_to,\
 _tfb_tick,\
 _tfb_get_queue_len,\
 _tfb_is_bus_available,\

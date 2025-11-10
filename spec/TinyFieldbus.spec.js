@@ -74,19 +74,26 @@ describe("tiny fieldbus",()=>{
 		let controller=new TinyFieldbusController({port: bus.createPort()});
 		controller.addEventListener("device",ev=>deviceEndpointPromise.resolve(ev.device));
 		let device=new TinyFieldbusDevice({port: bus.createPort(), name: "devname", type: "devtype"});
+		device.addEventListener("message",ev=>{
+			messages.push("c: "+arrayBufferToString(ev.data));
+			if (messages.length==3)
+				done.resolve();
+		});
 
 		let deviceEndpoint=await deviceEndpointPromise;
 		deviceEndpoint.addEventListener("message",ev=>{
-			messages.push(arrayBufferToString(ev.data));
-			if (messages.length==2) {
-				expect(messages).toEqual(["hello","again"]);
+			messages.push("d: "+arrayBufferToString(ev.data));
+			if (messages.length==3)
 				done.resolve();
-			}
 		});
 
+		deviceEndpoint.send("hello from the controller");
 		device.send("hello");
 		device.send("again");
 
 		await done;
+		expect(messages).toContain("d: hello");
+		expect(messages).toContain("d: again");
+		expect(messages).toContain("c: hello from the controller");
 	});
 });

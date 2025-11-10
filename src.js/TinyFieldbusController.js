@@ -33,6 +33,10 @@ export default class TinyFieldbusController extends SyncEventTarget {
 			}
 
 			let device=new SyncEventTarget();
+			device.send=data=>{
+				this.tfbHandler.send_to(data,device.id);
+			}
+
 			device.name=ev.name;
 			device.id=ev.id;
 			this.devicesByName[device.name]=device;
@@ -49,20 +53,4 @@ export default class TinyFieldbusController extends SyncEventTarget {
 			delete this.devicesByName[ev.name];
 		}
 	}
-
-	// FIXME! should use handler
-	/*deviceById(id) {
-		if (!id)
-			return;
-
-		for (let device of this.devices)
-			if (device.id==id)
-				return device;
-
-		let device=new SyncEventTarget();
-		device.id=id;
-		this.devices.push(device);
-
-		return device;
-	}*/
 }

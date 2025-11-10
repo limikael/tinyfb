@@ -32,6 +32,7 @@ void tfb_millis_func(uint32_t (*func)());
 bool tfb_tx_is_available(tfb_t *tfb);
 uint8_t tfb_tx_pop_byte(tfb_t *tfb);
 bool tfb_send(tfb_t *tfb, uint8_t *data, size_t size);
+bool tfb_send_to(tfb_t *t, uint8_t *data, size_t size, int to);
 void tfb_tick(tfb_t *tfb);
 int tfb_get_queue_len(tfb_t *tfb);
 void tfb_notify_bus_activity(tfb_t *tfb);

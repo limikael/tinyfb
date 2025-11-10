@@ -58,3 +58,21 @@ export class SyncEventTarget {
         return !event.defaultPrevented;
     }
 }
+
+export class CustomEvent extends Event {
+    constructor(type, props={}) {
+        super(type);
+        Object.assign(this,props);
+    }
+}
+
+export function logAndThrow(fn) {
+    try {
+        return fn();
+    }
+
+    catch (e) {
+       console.error(e);
+        throw e;
+    }
+}

@@ -233,7 +233,7 @@ void tfb_rx_push_byte(tfb_t *tfb, uint8_t byte) {
 	}
 
 	if (tfb_is_frame_message_for_us(tfb,tfb->rx_frame)) {
-		//printf("proc frame\n");
+		//printf("processing message frame!!!\n");
 
 		if (tfb_frame_has_data(tfb->rx_frame,TFB_PAYLOAD)) {
 			uint8_t *payload=tfb_frame_get_data(tfb->rx_frame,TFB_PAYLOAD);
@@ -358,10 +358,28 @@ bool tfb_send(tfb_t *tfb, uint8_t *data, size_t size) {
 	tfb_frame_write_checksum(frame);
 	tfb_frame_set_notification_func(frame,tfb,tfb_schedule_resend);
 	tfb->seq++;
-
 	tfb->tx_queue[tfb->tx_queue_len++]=frame;
 
 	//printf("here... qlen=%d\n",tfb->tx_queue_len);
+
+	return true;
+}
+
+bool tfb_send_to(tfb_t *tfb, uint8_t *data, size_t size, int to) {
+	if (!tfb_is_controller(tfb))
+		return false;
+
+	if (tfb->tx_queue_len>=TFB_TX_QUEUE_LEN)
+		return false;
+
+	tfb_frame_t *frame=tfb_frame_create(size+128);
+	tfb_frame_write_num(frame,TFB_TO,to);
+	tfb_frame_write_num(frame,TFB_SEQ,tfb->seq);
+	tfb_frame_write_data(frame,TFB_PAYLOAD,data,size);
+	tfb_frame_write_checksum(frame);
+	tfb_frame_set_notification_func(frame,tfb,tfb_schedule_resend);
+	tfb->seq++;
+	tfb->tx_queue[tfb->tx_queue_len++]=frame;
 
 	return true;
 }
