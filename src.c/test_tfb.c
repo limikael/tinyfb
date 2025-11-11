@@ -245,7 +245,7 @@ void test_receive_assignment() {
 
 	tfb_read_frame(tfb,frame);
 	char s[1024];
-	printf("frame: %s\n",tfb_frame_sprint(frame,s));
+	//printf("frame: %s\n",tfb_frame_sprint(frame,s));
 	assert(!strcmp(s,"announce_name: (5) 'hello' announce_type: (5) 'world' checksum: 113 "));
 
 	tfb_frame_dispose(frame);
