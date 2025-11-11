@@ -13,6 +13,7 @@
 #define TFB_ANNOUNCE_TYPE 8
 #define TFB_ASSIGN_NAME 9
 #define TFB_SESSION_ID 10
+#define TFB_RESET_TO 11
 
 typedef struct tfb tfb_t;
 

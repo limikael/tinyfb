@@ -196,6 +196,62 @@ void test_device_announcement_on_session() {
 	tfb_dispose(tfb);
 }
 
+int test_receive_assignment_status_calls=0;
+void test_receive_assignment_status() {
+	test_receive_assignment_status_calls++;
+}
+
+void test_receive_assignment() {
+	printf("- Receive and drop assignment.\n");
+	mock_millis=1000;
+	test_receive_assignment_status_calls=0;
+	tfb_t *tfb=tfb_create_device("hello","world");
+	tfb_status_func(tfb,test_receive_assignment_status);
+	tfb_frame_t *frame=tfb_frame_create(1024);
+
+	mock_millis+=1000;
+	tfb_tick(tfb);
+	tfb_read_frame(tfb,frame);
+
+	tfb_frame_reset(frame);
+	tfb_frame_write_num(frame,TFB_SESSION_ID,1234);
+	tfb_frame_write_data(frame,TFB_ASSIGN_NAME,(uint8_t*)"hello",5);
+	tfb_frame_write_num(frame,TFB_TO,123);
+	tfb_frame_write_checksum(frame);
+	tfb_write_frame(tfb,frame);
+
+	assert(tfb->session_id==1234);
+	assert(tfb->id==123);
+	assert(tfb_is_connected(tfb));
+	assert(test_receive_assignment_status_calls==1);
+
+	mock_millis+=1000;
+	tfb_tick(tfb);
+	assert(!tfb_tx_is_available(tfb));
+
+	tfb_frame_reset(frame);
+	tfb_frame_write_num(frame,TFB_SESSION_ID,1234);
+	tfb_frame_write_num(frame,TFB_RESET_TO,123);
+	tfb_frame_write_checksum(frame);
+	tfb_write_frame(tfb,frame);
+
+	assert(tfb->session_id==1234);
+	assert(tfb->id==-1);
+	assert(!tfb_is_connected(tfb));
+	assert(test_receive_assignment_status_calls==2);
+
+	mock_millis+=1000;
+	tfb_tick(tfb);
+
+	tfb_read_frame(tfb,frame);
+	char s[1024];
+	printf("frame: %s\n",tfb_frame_sprint(frame,s));
+	assert(!strcmp(s,"announce_name: (5) 'hello' announce_type: (5) 'world' checksum: 113 "));
+
+	tfb_frame_dispose(frame);
+	tfb_dispose(tfb);
+}
+
 int main() {
 	//srand((unsigned int)time(NULL));
 	srand(0);
@@ -208,6 +264,7 @@ int main() {
 	test_assign_device();
 	test_device_announcement();
 	test_device_announcement_on_session();
+	test_receive_assignment();
 
 	printf("Blocks remaining: %d\n",tfb_allocated_blocks);
 	assert(!tfb_allocated_blocks);

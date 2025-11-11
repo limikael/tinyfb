@@ -5,3 +5,4 @@ x remove device (in controller) if no activity
 - proper sequence numbers
 - ack message before delivering payload to app
 - cleanup exported funcs
+- unassign id

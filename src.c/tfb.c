@@ -221,7 +221,8 @@ bool tfb_is_frame_message_for_us(tfb_t *tfb, tfb_frame_t *frame) {
 
 	if (tfb_is_controller(tfb)) {
 		if (!tfb_frame_has_data(frame,TFB_TO) &&
-				tfb_frame_has_data(frame,TFB_FROM))
+				tfb_frame_has_data(frame,TFB_FROM) &&
+				tfb_get_device_by_id(tfb,tfb_frame_get_num(frame,TFB_FROM)))
 			return true;
 	}
 
@@ -325,6 +326,12 @@ void tfb_rx_push_byte(tfb_t *tfb, uint8_t byte) {
 	}
 
 	if (tfb_is_device(tfb) &&
+			tfb_is_connected(tfb) &&
+			tfb_frame_get_num(tfb->rx_frame,TFB_RESET_TO)==tfb->id) {
+		tfb_set_id(tfb,-1);
+	}
+
+	if (tfb_is_device(tfb) &&
 			tfb_frame_has_data(tfb->rx_frame,TFB_SESSION_ID)) {
 		int session_id=tfb_frame_get_num(tfb->rx_frame,TFB_SESSION_ID);
 
@@ -359,9 +366,20 @@ void tfb_rx_push_byte(tfb_t *tfb, uint8_t byte) {
 
 	if (tfb_is_controller(tfb) &&
 			tfb_frame_has_data(tfb->rx_frame,TFB_FROM)) {
-		tfb_device_t *device=tfb_get_device_by_id(tfb,tfb_frame_get_num(tfb->rx_frame,TFB_FROM));
-		if (device)
+		int from_id=tfb_frame_get_num(tfb->rx_frame,TFB_FROM);
+		tfb_device_t *device=tfb_get_device_by_id(tfb,from_id);
+		if (device) {
 			device->activity_deadline=tfb_millis()+TFB_CONNECTION_TIMEOUT;
+		}
+
+		else {
+			tfb_frame_t *resetframe=tfb_frame_create(1024);
+			tfb_frame_set_notification_func(resetframe,tfb,tfb_dispose_frame);
+			tfb_frame_write_num(resetframe,TFB_SESSION_ID,tfb->session_id);
+			tfb_frame_write_num(resetframe,TFB_RESET_TO,from_id);
+			tfb_frame_write_checksum(resetframe);
+			tfb->tx_queue[tfb->tx_queue_len++]=resetframe;
+		}
 	}
 
 	tfb_frame_reset(tfb->rx_frame);

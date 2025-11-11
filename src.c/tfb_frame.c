@@ -331,7 +331,7 @@ int tfb_frame_get_num_keys(tfb_frame_t *frame) {
 	return keyindex;
 }
 
-char *tfb_frame_sprint(tfb_frame_t * frame, char *s) {
+char *tfb_frame_sprint(tfb_frame_t *frame, char *s) {
 	char *p=s;
 	for (int i=0; i<tfb_frame_get_num_keys(frame); i++) {
 		int key=tfb_frame_get_key_at(frame,i);
