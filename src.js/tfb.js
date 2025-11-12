@@ -36,6 +36,7 @@ def("tfb_get_timeout","number",["number"]);
 def("tfb_get_device_id_by_name","number",["number"]);
 def("tfb_get_session_id","number",["number"]);
 def("tfb_notify_bus_activity","null",["number"]);
+def("tfb_get_errno","number",["number"]);
 
 def("tfb_frame_create","number",["number"]);
 def("tfb_frame_dispose","null",["number"]);

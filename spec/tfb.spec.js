@@ -37,10 +37,11 @@ describe("tfb",()=>{
 		TFB.tfb_dispose(tfb2);
 	});
 
-	it("can call the message callback, and sends acks",()=>{
+	// delete! this is from! on id assignment!!!
+	/*it("can call the message callback, and sends acks",()=>{
 		let frame=TFB.tfb_frame_create(1024);
 		TFB.tfb_frame_write_num(frame,TFB.TFB_TO,34);
-		TFB.tfb_frame_write_num(frame,TFB.TFB_SEQ,9);
+		TFB.tfb_frame_write_num(frame,TFB.TFB_SEQ,1);
 		TFB.tfb_frame_write_data(frame,TFB.TFB_PAYLOAD,TFB.tfb_module.allocateUTF8("hello"),5);
 		TFB.tfb_frame_write_checksum(frame);
 		TFB.tfb_frame_tx_rewind(frame);
@@ -68,7 +69,7 @@ describe("tfb",()=>{
 		expect(callbackParams).toEqual(["hello"]);
 		//console.log(out);
 		expect(out).toEqual([126, 17, 34, 49, 9,  9,  2, 126]);
-	});
+	});*/
 
 	it("can send and ack",()=>{
 		jasmine.clock().mockDate(new Date(1000));

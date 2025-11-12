@@ -31,6 +31,7 @@ struct tfb_device {
 	char *name,*type;
 	int id;
 	uint32_t activity_deadline;
+	int inseq,outseq;
 };
 
 struct tfb {
@@ -38,7 +39,7 @@ struct tfb {
 	tfb_frame_t *tx_queue[TFB_TX_QUEUE_LEN];
 	size_t tx_queue_len;
 	bool rx_deliverable;
-	int id, seq;
+	int id, outseq, inseq;
 	uint32_t bus_available_millis;
 	char *device_name,*device_type;
 	uint32_t announcement_deadline,activity_deadline;
@@ -49,6 +50,7 @@ struct tfb {
 	tfb_device_t **devices;
 	size_t num_devices;
 	int session_id;
+	int errno;
 };
 
 struct tfb_frame {

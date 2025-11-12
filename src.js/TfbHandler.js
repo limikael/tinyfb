@@ -51,7 +51,7 @@ export default class TfbHandler extends SyncEventTarget {
 		this.updateTimeout();
 
 		if (!res)
-			throw new Error("Send failed");
+			throw new Error("Bus Error: "+TFB.tfb_get_errno(this.tfb));
 	}
 
 	send_to(data, device_id) {
@@ -71,7 +71,7 @@ export default class TfbHandler extends SyncEventTarget {
 		this.updateTimeout();
 
 		if (!res)
-			throw new Error("Send failed");
+			throw new Error("Bus Error: "+TFB.tfb_get_errno(this.tfb));
 	}
 
 	/*drain() {

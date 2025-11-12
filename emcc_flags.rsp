@@ -9,6 +9,7 @@ UTF8ToString
 -sEXPORTED_FUNCTIONS=\
 _malloc,\
 _free,\
+_tfb_get_errno,\
 _tfb_create_controller,\
 _tfb_create_device,\
 _tfb_create,\

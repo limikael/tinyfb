@@ -211,4 +211,40 @@ describe("tiny fieldbus",()=>{
 		expect(arrayBufferToString(deviceEvents.events[0].data)).toEqual("hello from the controller");
 		expect(arrayBufferToString(deviceEpEvents.events[1].data)).toEqual("world");
 	});
+
+	it("device expects proper seq numbers",async ()=>{
+		let bus=new Bus();
+		let device=new TinyFieldbusDevice({port: bus.createPort(), name: "devname", type: "devtype"});
+		let deviceEv=new EventCapture(device,["message"]);
+		jasmine.clock().tick(1000);
+		expect(()=>device.send("hello")).toThrow(new Error("Bus Error: 1"));
+		bus.writeFrame({assign_name: 'devname', to: 1, session_id: 1234});
+		jasmine.clock().tick(1000);
+
+		bus.writeFrame({to:1, payload: "hello out of seq", seq: 2});
+		bus.writeFrame({to:1, payload: "hello in seq 1", seq: 1});
+		bus.writeFrame({to:1, payload: "hello in seq 2", seq: 2});
+		bus.writeFrame({to:1, payload: "hello dup 2", seq: 2});
+		jasmine.clock().tick(1000);
+
+		bus.writeFrame({reset_to: 1, session_id: 1234});
+		jasmine.clock().tick(1000);
+		bus.writeFrame({assign_name: 'devname', to: 1, session_id: 1234});
+		jasmine.clock().tick(1000);
+
+		bus.writeFrame({to:1, payload: "restart hello out of seq", seq: 2});
+		bus.writeFrame({to:1, payload: "restart hello in seq 1", seq: 1});
+		bus.writeFrame({to:1, payload: "restart hello in seq 2", seq: 2});
+		bus.writeFrame({to:1, payload: "restart hello dup 2", seq: 2});
+		jasmine.clock().tick(1000);
+
+		//console.log(deviceEv.events);
+		expect(arrayBufferToString(deviceEv.events[0].data)).toEqual("hello in seq 1");
+		expect(arrayBufferToString(deviceEv.events[1].data)).toEqual("hello in seq 2");
+		expect(arrayBufferToString(deviceEv.events[2].data)).toEqual("restart hello in seq 1");
+		expect(arrayBufferToString(deviceEv.events[3].data)).toEqual("restart hello in seq 2");
+		expect(deviceEv.events.length).toEqual(4);
+
+		//console.log(bus.frame_log);
+	});
 });

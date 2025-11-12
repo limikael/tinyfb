@@ -15,6 +15,10 @@
 #define TFB_SESSION_ID 10
 #define TFB_RESET_TO 11
 
+#define TFB_ENOTCONN 1
+#define TFB_ENOSPC 2
+#define TFB_EOPNOTSUPP 3
+
 typedef struct tfb tfb_t;
 
 //tfb_t *tfb_create();
@@ -45,3 +49,4 @@ int tfb_get_timeout(tfb_t *tfb);
 int tfb_get_device_id_by_name(tfb_t *tfb, char *s);
 bool tfb_is_connected(tfb_t *tfb);
 int tfb_get_session_id(tfb_t *tfb);
+int tfb_get_errno(tfb_t *tfb);

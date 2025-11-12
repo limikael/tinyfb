@@ -8,6 +8,10 @@
 
 uint32_t (*tfb_millis)()=NULL;
 
+int tfb_get_errno(tfb_t *tfb) {
+	return tfb->errno;
+}
+
 int tfb_get_session_id(tfb_t *tfb) {
 	return tfb->session_id;
 }
@@ -74,7 +78,8 @@ tfb_t *tfb_create() {
 	tfb->status_func=NULL;
 	tfb->tx_queue_len=0;
 	tfb->bus_available_millis=0;
-	tfb->seq=1;
+	tfb->outseq=0;
+	tfb->inseq=0;
 	tfb->device_name=NULL;
 	tfb->device_type=NULL;
 	tfb->announcement_deadline=0;
@@ -205,8 +210,16 @@ void tfb_set_id(tfb_t *tfb, int id) {
 		tfb_dispose_frame(tfb,tfb->tx_queue[0]);
 
 	tfb->id=id;
-	if (!tfb_is_connected(tfb))
+	if (!tfb_is_connected(tfb)) {
 		tfb->activity_deadline=0;
+		tfb->inseq=0;
+		tfb->outseq=0;
+	}
+
+	if (tfb_is_connected(tfb)) {
+		tfb->inseq=1;
+		tfb->outseq=1;
+	}
 
 	bool current_connected=tfb_is_connected(tfb);
 
@@ -268,23 +281,41 @@ void tfb_rx_push_byte(tfb_t *tfb, uint8_t byte) {
 		//printf("processing message frame!!!\n");
 
 		if (tfb_frame_has_data(tfb->rx_frame,TFB_PAYLOAD)) {
-			tfb_frame_t *ackframe=tfb_frame_create(128);
-			tfb_frame_set_notification_func(ackframe,tfb,tfb_dispose_frame);
-			//tfb_frame_set_auto_dispose(ackframe,true);
+			tfb_frame_t *ackframe=NULL;
 
 			if (tfb_is_controller(tfb)) {
-				//printf("acking in controller to: %d\n",tfb_frame_get_num(tfb->rx_frame,TFB_FROM));
-				tfb_frame_write_num(ackframe,TFB_TO,tfb_frame_get_num(tfb->rx_frame,TFB_FROM));
+				tfb_device_t *device=tfb_get_device_by_id(tfb,tfb_frame_get_num(tfb->rx_frame,TFB_FROM));
+				if (device &&
+						tfb_frame_get_num(tfb->rx_frame,TFB_SEQ)<=device->inseq) {
+					ackframe=tfb_frame_create(128);
+					tfb_frame_write_num(ackframe,TFB_TO,device->id);
+
+					//printf("acking in controller to: %d\n",tfb_frame_get_num(tfb->rx_frame,TFB_FROM));
+					if (tfb_frame_get_num(tfb->rx_frame,TFB_SEQ)==device->inseq) {
+						tfb->rx_deliverable=true;
+						device->inseq++;
+					}
+				}
 			}
 
-			if (tfb_is_device(tfb))
+			if (tfb_is_device(tfb) &&
+					tfb_frame_get_num(tfb->rx_frame,TFB_SEQ)<=tfb->inseq) {
+				ackframe=tfb_frame_create(128);
 				tfb_frame_write_num(ackframe,TFB_FROM,tfb->id);
 
-			tfb_frame_write_num(ackframe,TFB_ACK,tfb_frame_get_num(tfb->rx_frame,TFB_SEQ));
-			tfb_frame_write_checksum(ackframe);
-			tfb_tx_make_current(tfb,ackframe);
+				//printf("got: %d, expected: %d\n",tfb_frame_get_num(tfb->rx_frame,TFB_SEQ),tfb->inseq);
+				if (tfb_frame_get_num(tfb->rx_frame,TFB_SEQ)==tfb->inseq) {
+					tfb->rx_deliverable=true;
+					tfb->inseq++;
+				}
+			}
 
-			tfb->rx_deliverable=true;
+			if (ackframe) {
+				tfb_frame_set_notification_func(ackframe,tfb,tfb_dispose_frame);
+				tfb_frame_write_num(ackframe,TFB_ACK,tfb_frame_get_num(tfb->rx_frame,TFB_SEQ));
+				tfb_frame_write_checksum(ackframe);
+				tfb_tx_make_current(tfb,ackframe);
+			}
 		}
 
 		if (tfb_frame_has_data(tfb->rx_frame,TFB_ACK)) {
@@ -422,19 +453,29 @@ uint8_t tfb_tx_pop_byte(tfb_t *tfb) {
 }
 
 bool tfb_send(tfb_t *tfb, uint8_t *data, size_t size) {
-	if (!tfb_is_device(tfb))
-		return false;
+	tfb->errno=0;
 
-	if (tfb->tx_queue_len>=TFB_TX_QUEUE_LEN)
+	if (!tfb_is_device(tfb)) {
+		tfb->errno=TFB_EOPNOTSUPP;
 		return false;
+	}
+
+	if (tfb->tx_queue_len>=TFB_TX_QUEUE_LEN) {
+		tfb->errno=TFB_ENOSPC;
+		return false;
+	}
+
+	if (!tfb_is_connected(tfb)) {
+		tfb->errno=TFB_ENOTCONN;
+		return false;
+	}
 
 	tfb_frame_t *frame=tfb_frame_create(size+128);
 	tfb_frame_write_num(frame,TFB_FROM,tfb->id);
-	tfb_frame_write_num(frame,TFB_SEQ,tfb->seq);
+	tfb_frame_write_num(frame,TFB_SEQ,tfb->outseq++);
 	tfb_frame_write_data(frame,TFB_PAYLOAD,data,size);
 	tfb_frame_write_checksum(frame);
 	tfb_frame_set_notification_func(frame,tfb,tfb_schedule_resend);
-	tfb->seq++;
 	tfb->tx_queue[tfb->tx_queue_len++]=frame;
 
 	//printf("here... qlen=%d\n",tfb->tx_queue_len);
@@ -443,19 +484,28 @@ bool tfb_send(tfb_t *tfb, uint8_t *data, size_t size) {
 }
 
 bool tfb_send_to(tfb_t *tfb, uint8_t *data, size_t size, int to) {
-	if (!tfb_is_controller(tfb))
+	if (!tfb_is_controller(tfb)) {
+		tfb->errno=TFB_EOPNOTSUPP;
 		return false;
+	}
 
-	if (tfb->tx_queue_len>=TFB_TX_QUEUE_LEN)
+	if (tfb->tx_queue_len>=TFB_TX_QUEUE_LEN) {
+		tfb->errno=TFB_ENOSPC;
 		return false;
+	}
+
+	tfb_device_t *device=tfb_get_device_by_id(tfb,to);
+	if (!device) {
+		tfb->errno=TFB_ENOTCONN;
+		return false;
+	}
 
 	tfb_frame_t *frame=tfb_frame_create(size+128);
 	tfb_frame_write_num(frame,TFB_TO,to);
-	tfb_frame_write_num(frame,TFB_SEQ,tfb->seq);
+	tfb_frame_write_num(frame,TFB_SEQ,device->outseq++);
 	tfb_frame_write_data(frame,TFB_PAYLOAD,data,size);
 	tfb_frame_write_checksum(frame);
 	tfb_frame_set_notification_func(frame,tfb,tfb_schedule_resend);
-	tfb->seq++;
 	tfb->tx_queue[tfb->tx_queue_len++]=frame;
 
 	return true;
