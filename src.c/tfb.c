@@ -83,6 +83,7 @@ tfb_t *tfb_create() {
 	tfb->devices=NULL;
 	tfb->session_id=0;
 	tfb->device_func=NULL;
+	tfb->rx_deliverable=false;
 
 	tfb_notify_bus_activity(tfb);
 
@@ -191,6 +192,11 @@ void tfb_set_id(tfb_t *tfb, int id) {
 	if (id==tfb->id)
 		return;
 
+	if (tfb->rx_deliverable) {
+		tfb->rx_deliverable=false;
+		tfb_frame_reset(tfb->rx_frame);
+	}
+
 	bool prev_connected=tfb_is_connected(tfb);
 	if (tfb->tx_frame)
 		tfb_dispose_frame(tfb,tfb->tx_frame);
@@ -244,7 +250,7 @@ int tfb_get_available_device_id(tfb_t *tfb) {
 }
 
 void tfb_rx_push_byte(tfb_t *tfb, uint8_t byte) {
-	if (tfb->tx_frame)
+	if (!tfb_rx_is_available(tfb))
 		return;
 
 	tfb_notify_bus_activity(tfb);
@@ -262,9 +268,6 @@ void tfb_rx_push_byte(tfb_t *tfb, uint8_t byte) {
 		//printf("processing message frame!!!\n");
 
 		if (tfb_frame_has_data(tfb->rx_frame,TFB_PAYLOAD)) {
-			uint8_t *payload=tfb_frame_get_data(tfb->rx_frame,TFB_PAYLOAD);
-			size_t payload_size=tfb_frame_get_data_size(tfb->rx_frame,TFB_PAYLOAD);
-
 			tfb_frame_t *ackframe=tfb_frame_create(128);
 			tfb_frame_set_notification_func(ackframe,tfb,tfb_dispose_frame);
 			//tfb_frame_set_auto_dispose(ackframe,true);
@@ -281,11 +284,7 @@ void tfb_rx_push_byte(tfb_t *tfb, uint8_t byte) {
 			tfb_frame_write_checksum(ackframe);
 			tfb_tx_make_current(tfb,ackframe);
 
-			if (tfb_is_controller(tfb) && tfb->message_from_func)
-				tfb->message_from_func(payload,payload_size,tfb_frame_get_num(tfb->rx_frame,TFB_FROM));
-
-			if (tfb_is_device(tfb) && tfb->message_func)
-				tfb->message_func(payload,payload_size);
+			tfb->rx_deliverable=true;
 		}
 
 		if (tfb_frame_has_data(tfb->rx_frame,TFB_ACK)) {
@@ -386,10 +385,14 @@ void tfb_rx_push_byte(tfb_t *tfb, uint8_t byte) {
 		}
 	}
 
-	tfb_frame_reset(tfb->rx_frame);
+	if (!tfb->rx_deliverable)
+		tfb_frame_reset(tfb->rx_frame);
 }
 
 bool tfb_rx_is_available(tfb_t *tfb) {
+	if (tfb->rx_deliverable)
+		return false;
+
 	if (tfb->tx_frame)
 		return false;
 
@@ -495,6 +498,21 @@ void tfb_close_device(tfb_t *tfb, tfb_device_t *device) {
 void tfb_tick(tfb_t *tfb) {
 	if (tfb->tx_frame)
 		return;
+
+	if (tfb->rx_deliverable) {
+		uint8_t *payload=tfb_frame_get_data(tfb->rx_frame,TFB_PAYLOAD);
+		size_t payload_size=tfb_frame_get_data_size(tfb->rx_frame,TFB_PAYLOAD);
+
+		if (tfb_is_controller(tfb) && tfb->message_from_func)
+			tfb->message_from_func(payload,payload_size,tfb_frame_get_num(tfb->rx_frame,TFB_FROM));
+
+		if (tfb_is_device(tfb) && tfb->message_func)
+			tfb->message_func(payload,payload_size);
+
+		tfb->rx_deliverable=false;
+		tfb_frame_reset(tfb->rx_frame);
+	}
+
 
 	int millis=tfb_millis();
 	if (tfb->announcement_deadline &&

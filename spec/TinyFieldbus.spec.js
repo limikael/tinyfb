@@ -27,6 +27,26 @@ describe("tiny fieldbus",()=>{
 		//console.log(bus.frame_log);
 	});
 
+	it("sends ack before delivering to app",async ()=>{
+		let bus=new Bus();
+		let dev=new TinyFieldbusDevice({port: bus.createPort(), name: "hello", type: "world"});
+		let events=[];
+
+		bus.on("frame",frame=>events.push(frame));
+		dev.addEventListener("message",ev=>events.push(ev));
+
+		bus.writeFrame({assign_name: 'hello', to: 1, session_id: 1234});
+		bus.writeFrame({to: 1, seq: 1, payload: "the message"});
+		jasmine.clock().tick(1000);
+
+		//console.log(bus.frame_log);
+		//console.log(events);
+
+		expect(events).toContain({ to: 1, seq: 1, payload: 'the message', checksum: 37 });
+		expect(events).toContain({ from: 1, ack: 1, checksum: 41 });
+		expect(events[events.length-1]).type=="message";
+	});
+
 	it("can check connection and closes itself on missed ack",async ()=>{
 		let event_log=[];
 		let bus=new Bus();

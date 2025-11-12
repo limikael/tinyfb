@@ -37,6 +37,7 @@ struct tfb {
 	tfb_frame_t *rx_frame,*tx_frame;
 	tfb_frame_t *tx_queue[TFB_TX_QUEUE_LEN];
 	size_t tx_queue_len;
+	bool rx_deliverable;
 	int id, seq;
 	uint32_t bus_available_millis;
 	char *device_name,*device_type;

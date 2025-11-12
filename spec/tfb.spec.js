@@ -63,6 +63,8 @@ describe("tfb",()=>{
 		while (TFB.tfb_tx_is_available(tfb))
 			out.push(TFB.tfb_tx_pop_byte(tfb));
 
+		TFB.tfb_tick(tfb);
+
 		expect(callbackParams).toEqual(["hello"]);
 		//console.log(out);
 		expect(out).toEqual([126, 17, 34, 49, 9,  9,  2, 126]);
