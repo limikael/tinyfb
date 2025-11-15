@@ -57,6 +57,7 @@ struct tfb_link {
 	void (*frame_func)(tfb_link_t *link, uint8_t *data, size_t size);
 	tfb_time_t bus_available_deadline;
 	void *tag;
+	uint32_t num_submitted;
 
 	struct {
 		uint8_t *data;

@@ -63,6 +63,46 @@ void test_tfb_link_receive() {
 		tfb_free(test_tfb_link_receive_data);
 }
 
+void test_tfb_link_counters() {
+	srand(0);
+	mock_millis=1000;
+	printf("- Link does counting...\n");
+
+	tfb_link_t *link=tfb_link_create();
+	assert(tfb_link_get_num_submitted(link)==0);
+	assert(tfb_link_get_num_transmitted(link)==0);
+
+	assert(tfb_link_send(link,(uint8_t*)"hello\x62",6));
+	assert(tfb_link_get_num_submitted(link)==1);
+	assert(tfb_link_get_num_transmitted(link)==0);
+
+	assert(tfb_link_send(link,(uint8_t*)"hello\x62",6));
+	assert(tfb_link_get_num_submitted(link)==2);
+
+	while (tfb_link_tx_is_available(link))
+		tfb_link_tx_pop_byte(link);
+
+	assert(tfb_link_get_num_transmitted(link)==0);
+
+	mock_millis+=1000;
+	while (tfb_link_tx_is_available(link))
+		tfb_link_tx_pop_byte(link);
+
+	assert(tfb_link_is_transmitted(link,1));
+	assert(!tfb_link_is_transmitted(link,2));
+	assert(tfb_link_get_num_transmitted(link)==1);
+
+	mock_millis+=1000;
+	while (tfb_link_tx_is_available(link))
+		tfb_link_tx_pop_byte(link);
+
+	assert(tfb_link_get_num_transmitted(link)==2);
+	assert(tfb_link_is_transmitted(link,1));
+	assert(tfb_link_is_transmitted(link,2));
+
+	tfb_link_dispose(link);
+}
+
 void test_tfb_link_send() {
 	srand(0);
 	mock_millis=1000;

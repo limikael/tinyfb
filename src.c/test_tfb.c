@@ -19,6 +19,7 @@ void test_tfb_create() {
 
 void test_session_announcement() {
 	mock_millis=1000;
+	tfb_srand(0);
 
 	printf("- Send session announcement.\n");
 	tfb_t *tfb=tfb_create_controller();
@@ -36,7 +37,7 @@ void test_session_announcement() {
 	char s[1024];
 	tfb_frame_sprint(frame,s);
 	//printf("frame: %s\n",s);
-	assert(strstr(s,"session_id: 19040"));
+	assert(strstr(s,"session_id: 12583"));
 
 	tfb_frame_dispose(frame);
 	tfb_dispose(tfb);
@@ -307,6 +308,7 @@ void test_tfb_resend() {
 void test_tfb_link();
 void test_tfb_link_receive();
 void test_tfb_link_send();
+void test_tfb_link_counters();
 
 void test_tfb_frame_basic();
 
@@ -320,6 +322,7 @@ int main() {
 	test_tfb_link();
 	test_tfb_link_receive();
 	test_tfb_link_send();
+	test_tfb_link_counters();
 
 	test_tfb_create();
 	test_session_announcement();

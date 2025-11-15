@@ -15,3 +15,6 @@ int tfb_link_get_timeout(tfb_link_t *link);
 void tfb_link_set_tag(tfb_link_t *link, void *tag);
 void *tfb_link_get_tag(tfb_link_t *link);
 tfb_time_t tfb_link_get_deadline(tfb_link_t *link);
+uint32_t tfb_link_get_num_submitted(tfb_link_t *link);
+uint32_t tfb_link_get_num_transmitted(tfb_link_t *link);
+bool tfb_link_is_transmitted(tfb_link_t *link, uint32_t submitted);

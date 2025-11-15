@@ -16,6 +16,7 @@ tfb_link_t *tfb_link_create() {
 	link->tx_queue_len=0;
 	link->tx_index=0;
 	link->tag=NULL;
+	link->num_submitted=0;
 
 	tfb_link_notify_bus_activity(link);
 
@@ -106,6 +107,7 @@ bool tfb_link_send(tfb_link_t *link, uint8_t *data, size_t size) {
 	memcpy(link->tx_queue[link->tx_queue_len].data,data,size);
 	link->tx_queue[link->tx_queue_len].size=size;
 	link->tx_queue_len++;
+	link->num_submitted++;
 
 	return true;
 }
@@ -135,17 +137,6 @@ tfb_time_t tfb_link_get_deadline(tfb_link_t *link) {
 
 int tfb_link_get_timeout(tfb_link_t *link) {
 	return tfb_time_timeout(tfb_link_get_deadline(link));
-/*	if (link->tx_state!=TFB_LINK_TX_IDLE)
-		return 0;
-
-	if (!link->tx_queue_len)
-		return -1;
-
-	int until_timeout=link->bus_available_millis-tfb_time_now();
-	if (until_timeout<0)
-		until_timeout=0;
-
-	return until_timeout;*/
 }
 
 uint8_t tfb_link_tx_pop_byte(tfb_link_t *link) {
@@ -182,4 +173,21 @@ uint8_t tfb_link_tx_pop_byte(tfb_link_t *link) {
 
 	link->tx_index++;
 	return byte;
+}
+
+uint32_t tfb_link_get_num_submitted(tfb_link_t *link) {
+	return link->num_submitted;
+}
+
+uint32_t tfb_link_get_num_transmitted(tfb_link_t *link) {
+	return (link->num_submitted-link->tx_queue_len);
+}
+
+//bool tfb_link_is_transmitted(tfb_link_t *link, uint32_t submitted);
+
+bool tfb_link_is_transmitted(tfb_link_t *link, uint32_t submitted) {
+    uint32_t num_transmitted = link->num_submitted - link->tx_queue_len;
+
+    // True if (num_transmitted >= submitted) in modulo-2^32 arithmetic
+    return (uint32_t)(num_transmitted - submitted) < 0x80000000u;
 }
