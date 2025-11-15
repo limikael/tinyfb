@@ -7,7 +7,7 @@ tfb_device_t *tfb_device_create(int id, char *name, char *type) {
 	device->id=id;
 	device->name=tfb_strdup(name);
 	device->type=tfb_strdup(type);
-	device->activity_deadline=tfb_millis()+TFB_CONNECTION_TIMEOUT;
+	device->activity_deadline=tfb_time_future(TFB_CONNECTION_TIMEOUT);
 	device->inseq=1;
 	device->outseq=1;
 

@@ -31,7 +31,10 @@ void *tfb_link_get_tag(tfb_link_t *link) {
 }
 
 void tfb_link_notify_bus_activity(tfb_link_t *link) {
-	uint32_t baud=9600;
+	int delay=TFB_CA_DELAY_MIN+(rand()%(TFB_CA_DELAY_MAX-TFB_CA_DELAY_MIN));
+	link->bus_available_deadline=tfb_time_future(delay);
+
+	/*uint32_t baud=9600;
 	uint32_t byte_time = 1000 * 10 / baud; // 10 bits per byte in ms
 	if (!byte_time)
 		byte_time=1;
@@ -39,8 +42,8 @@ void tfb_link_notify_bus_activity(tfb_link_t *link) {
 	uint32_t base = 2 * byte_time;         // wait at least 2 bytes
 	uint32_t random_backoff = (rand() % 10);// * byte_time;
 
-	link->bus_available_millis=tfb_millis()+base+random_backoff;
-	//printf("update bus available: %u\n",tfb->bus_available_millis);
+	link->bus_available_millis=tfb_time_now()+base+random_backoff;
+	//printf("update bus available: %u\n",tfb->bus_available_millis);*/
 }
 
 void tfb_link_dispose(tfb_link_t *link) {
@@ -97,7 +100,7 @@ bool tfb_link_send(tfb_link_t *link, uint8_t *data, size_t size) {
 	if (compute_xor_checksum(data,size))
 		return false;
 
-	printf("sending link bytes: %zu... queue size: %d\n",size,link->tx_queue_len);
+	//printf("sending link bytes: %zu... queue size: %d\n",size,link->tx_queue_len);
 
 	link->tx_queue[link->tx_queue_len].data=tfb_malloc(size);
 	memcpy(link->tx_queue[link->tx_queue_len].data,data,size);
@@ -111,24 +114,38 @@ bool tfb_link_tx_is_available(tfb_link_t *link) {
 	if (!link->tx_queue_len)
 		return false;
 
+	if (link->tx_state!=TFB_LINK_TX_IDLE)
+		return true;
+
 	if (tfb_link_get_timeout(link)>0)
 		return false;
 
 	return true;
 }
 
-int tfb_link_get_timeout(tfb_link_t *link) {
+tfb_time_t tfb_link_get_deadline(tfb_link_t *link) {
 	if (link->tx_state!=TFB_LINK_TX_IDLE)
+		return tfb_time_now();
+
+	if (!link->tx_queue_len)
+		return TFB_TIME_NEVER;
+
+	return link->bus_available_deadline;
+}
+
+int tfb_link_get_timeout(tfb_link_t *link) {
+	return tfb_time_timeout(tfb_link_get_deadline(link));
+/*	if (link->tx_state!=TFB_LINK_TX_IDLE)
 		return 0;
 
 	if (!link->tx_queue_len)
 		return -1;
 
-	int until_timeout=link->bus_available_millis-tfb_millis();
+	int until_timeout=link->bus_available_millis-tfb_time_now();
 	if (until_timeout<0)
 		until_timeout=0;
 
-	return until_timeout;
+	return until_timeout;*/
 }
 
 uint8_t tfb_link_tx_pop_byte(tfb_link_t *link) {

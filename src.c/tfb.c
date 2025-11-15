@@ -10,8 +10,6 @@
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
-uint32_t (*tfb_millis)()=NULL;
-
 int tfb_get_errno(tfb_t *tfb) {
 	return tfb->errno;
 }
@@ -66,10 +64,10 @@ void tfb_handle_link_frame(tfb_link_t *link, uint8_t *data, size_t size) {
 }
 
 tfb_t *tfb_create() {
-	if (!tfb_millis) {
+	/*if (!tfb_millis) {
 		printf("**** millis function not set! ****\n");
 		return NULL;
-	}
+	}*/
 
 	//printf("millis=%p\n",tfb_millis);
 
@@ -85,7 +83,7 @@ tfb_t *tfb_create() {
 	tfb->inseq=0;
 	tfb->device_name=NULL;
 	tfb->device_type=NULL;
-	tfb->announcement_deadline=0;
+	tfb->announcement_deadline=TFB_TIME_NEVER;
 	tfb->activity_deadline=0;
 	tfb->num_devices=0;
 	tfb->devices=NULL;
@@ -103,7 +101,7 @@ tfb_t *tfb_create_controller() {
 	tfb->id=0;
 	tfb->devices=tfb_malloc(sizeof(tfb_device_t *)*16); // TODO: make dynamic
 	tfb->session_id=(rand()%32000)+1;
-	tfb->announcement_deadline=tfb_millis();
+	tfb->announcement_deadline=tfb_time_now();
 
 	return tfb;
 }
@@ -333,7 +331,7 @@ void tfb_handle_frame(tfb_t *tfb, uint8_t *data, size_t size) {
 
 		if (tfb_is_connected(tfb) &&
 				!tfb_frame_has_data(frame,TFB_ASSIGN_NAME)) {
-			tfb->activity_deadline=tfb_millis()+TFB_CONNECTION_TIMEOUT;
+			tfb->activity_deadline=tfb_time_future(TFB_CONNECTION_TIMEOUT);
 			tfb_frame_t *pongframe=tfb_frame_create(32);
 			tfb_frame_write_num(pongframe,TFB_FROM,tfb->id);
 			tfb_send_frame(tfb,pongframe);
@@ -660,20 +658,19 @@ void tfb_close_device(tfb_t *tfb, tfb_device_t *device) {
 }*/
 
 void tfb_tick(tfb_t *tfb) {
-	int millis=tfb_millis();
+	//int millis=tfb_time_now();
 
-	if (tfb->announcement_deadline &&
-			millis>=tfb->announcement_deadline) {
+	if (tfb_time_expired(tfb->announcement_deadline)) {
 		tfb_frame_t *announceframe=tfb_frame_create(32);
 		tfb_frame_write_num(announceframe,TFB_SESSION_ID,tfb->session_id);
 		tfb_frame_write_checksum(announceframe);
 		tfb_link_send(tfb->link,tfb_frame_get_buffer(announceframe),tfb_frame_get_size(announceframe));
 		tfb_frame_dispose(announceframe);
-		tfb->announcement_deadline=millis+TFB_ANNOUNCEMENT_INTERVAL;
+		tfb->announcement_deadline=tfb_time_future(TFB_ANNOUNCEMENT_INTERVAL);
 	}
 
 	for (int i=tfb->tx_queue_len-1; i>=0; i--) {
-		if (millis>=tfb->tx_queue[i]->resend_deadline) {
+		if (tfb_time_expired(tfb->tx_queue[i]->resend_deadline)) {
 			if (tfb->tx_queue[i]->resend_count>=TFB_RETRIES) {
 				tfb_frame_dispose(tfb->tx_queue[i]);
 				memmove(&tfb->tx_queue[i],&tfb->tx_queue[i+1],(tfb->tx_queue_len-i-1)*sizeof(tfb_frame_t*));
@@ -684,7 +681,7 @@ void tfb_tick(tfb_t *tfb) {
 				tfb_send_frame(tfb,tfb->tx_queue[i]);
 				tfb->tx_queue[i]->resend_count++;
 				tfb_frame_update_resend_deadline(tfb->tx_queue[i]);
-				printf("resend deadline: %d\n",tfb->tx_queue[i]->resend_deadline);
+				//printf("resend deadline: %d\n",tfb->tx_queue[i]->resend_deadline);
 			}
 		}
 	}
@@ -756,10 +753,6 @@ void tfb_tick(tfb_t *tfb) {
 	return tfb->tx_queue_len;
 }*/
 
-void tfb_millis_func(uint32_t (*func)()) {
-	tfb_millis=func;
-}
-
 void tfb_notify_bus_activity(tfb_t *tfb) {
 	tfb_link_notify_bus_activity(tfb->link);
 }
@@ -775,7 +768,7 @@ void tfb_srand(unsigned int seed) {
 	srand(seed);
 }
 
-int tfb_closest_timeout(int a, int b) {
+/*int tfb_closest_timeout(int a, int b) {
 	if (a<0 && b<0)
 		return -1;
 
@@ -786,20 +779,23 @@ int tfb_closest_timeout(int a, int b) {
 		return a;
 
 	return MIN(a,b);
+}*/
+
+tfb_time_t tfb_get_deadline(tfb_t *tfb) {
+	tfb_time_t deadline=TFB_TIME_NEVER;
+
+	deadline=tfb_time_soonest(deadline,tfb->announcement_deadline);
+
+	for (int i=0; i<tfb->tx_queue_len; i++)
+		deadline=tfb_time_soonest(deadline,tfb->tx_queue[i]->resend_deadline);
+
+	deadline=tfb_time_soonest(deadline,tfb_link_get_deadline(tfb->link));
+
+	return deadline;
 }
 
 int tfb_get_timeout(tfb_t *tfb) {
-	int timeout=-1;
-
-	if (tfb->announcement_deadline)
-		timeout=tfb_closest_timeout(timeout,MAX(0,tfb->announcement_deadline-tfb_millis()));
-
-	for (int i=0; i<tfb->tx_queue_len; i++)
-		timeout=tfb_closest_timeout(timeout,MAX(0,tfb->tx_queue[i]->resend_deadline-tfb_millis()));
-
-	timeout=tfb_closest_timeout(timeout,tfb_link_get_timeout(tfb->link));
-
-	return timeout;
+	return tfb_time_timeout(tfb_get_deadline(tfb));
 }
 
 /*int tfb_get_timeout(tfb_t *tfb) {

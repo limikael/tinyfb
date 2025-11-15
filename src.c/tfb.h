@@ -3,18 +3,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#define TFB_CHECKSUM 1
-#define TFB_FROM 2
-#define TFB_TO 3
-#define TFB_PAYLOAD 4
-#define TFB_SEQ 5
-#define TFB_ACK 6
-#define TFB_ANNOUNCE_NAME 7
-#define TFB_ANNOUNCE_TYPE 8
-#define TFB_ASSIGN_NAME 9
-#define TFB_SESSION_ID 10
-#define TFB_RESET_TO 11
-
 #define TFB_ENOTCONN 1
 #define TFB_ENOSPC 2
 #define TFB_EOPNOTSUPP 3

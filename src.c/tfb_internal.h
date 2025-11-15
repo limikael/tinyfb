@@ -1,10 +1,27 @@
 #pragma once
 
+#include <stdint.h>
+
+typedef uint32_t tfb_time_t;
+
 #include "tfb.h"
 #include "tfb_frame.h"
 #include "tfb_util.h"
 #include "tfb_device.h"
 #include "tfb_link.h"
+#include "tfb_time.h"
+
+#define TFB_CHECKSUM 1
+#define TFB_FROM 2
+#define TFB_TO 3
+#define TFB_PAYLOAD 4
+#define TFB_SEQ 5
+#define TFB_ACK 6
+#define TFB_ANNOUNCE_NAME 7
+#define TFB_ANNOUNCE_TYPE 8
+#define TFB_ASSIGN_NAME 9
+#define TFB_SESSION_ID 10
+#define TFB_RESET_TO 11
 
 #define TFB_RX_BUF_SIZE 1024
 #define TFB_RESEND_BASE 10
@@ -14,7 +31,11 @@
 #define TFB_LINK_QUEUE_LEN 8
 #define TFB_TRANSPORT_QUEUE_LEN 8
 
-extern uint32_t (*tfb_millis)();
+#define TFB_TIME_NEVER 0xffffffff
+
+#define TFB_CA_DELAY_MIN 10
+#define TFB_CA_DELAY_MAX 20
+//extern uint32_t (*tfb_millis)();
 
 typedef enum {
 	TFB_LINK_RX_INIT,
@@ -34,7 +55,7 @@ struct tfb_link {
 	tfb_link_rx_state_t rx_state;
 	tfb_link_tx_state_t tx_state;
 	void (*frame_func)(tfb_link_t *link, uint8_t *data, size_t size);
-	uint32_t bus_available_millis;
+	tfb_time_t bus_available_deadline;
 	void *tag;
 
 	struct {

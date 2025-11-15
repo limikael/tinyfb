@@ -92,7 +92,7 @@ void test_device_announcement() {
 	tfb_t *tfb=tfb_create_device("hello","world");
 
 	assert(tfb->link->tx_queue_len==1);
-	assert(tfb->announcement_deadline==0);
+	assert(tfb->announcement_deadline==TFB_TIME_NEVER);
 
 	tfb_frame_t *frame=tfb_frame_create(1024);
 	tfb_frame_write_num(frame,TFB_SESSION_ID,1234);
@@ -315,7 +315,7 @@ int main() {
 	srand(0);
 
 	printf("Running tests...\n");
-	tfb_millis=mock_millis_func;
+	tfb_millis_func(mock_millis_func);
 
 	test_tfb_link();
 	test_tfb_link_receive();

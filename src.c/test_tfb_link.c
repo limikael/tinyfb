@@ -8,7 +8,7 @@ extern uint32_t mock_millis;
 
 void test_tfb_link() {
 	mock_millis=1234;
-	printf("- Link can be created, millis=%d\n",tfb_millis());
+	printf("- Link can be created, now=%d\n",tfb_time_now());
 
 	tfb_link_t *link=tfb_link_create();
 
@@ -32,8 +32,9 @@ void test_tfb_link_receive() {
 
 	tfb_link_t *link=tfb_link_create();
 	tfb_link_frame_func(link,test_tfb_link_receive_frame_func);
-	//printf("available at: %d\n",link->bus_available_millis);
-	assert(link->bus_available_millis==1011);
+	//printf("available at: %d\n",link->bus_available_deadline);
+	assert(link->bus_available_deadline>=1010);
+	//assert(tfb_link_get_deadline(link)==1011);
 
 	tfb_link_rx_push_byte(link,'x');
 	assert(link->rx_pos==0);
@@ -84,6 +85,8 @@ void test_tfb_link_send() {
 
 	while(tfb_link_tx_is_available(link))
 		assert(tfb_link_tx_pop_byte(link)==expected[count++]);
+
+	//printf("count=%d\n",count);
 
 	assert(count==8);
 	assert(!tfb_link_tx_is_available(link));

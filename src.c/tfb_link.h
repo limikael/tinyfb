@@ -1,4 +1,5 @@
 #pragma once
+#include "tfb_internal.h"
 
 typedef struct tfb_link tfb_link_t;
 
@@ -13,3 +14,4 @@ void tfb_link_notify_bus_activity(tfb_link_t *link);
 int tfb_link_get_timeout(tfb_link_t *link);
 void tfb_link_set_tag(tfb_link_t *link, void *tag);
 void *tfb_link_get_tag(tfb_link_t *link);
+tfb_time_t tfb_link_get_deadline(tfb_link_t *link);
