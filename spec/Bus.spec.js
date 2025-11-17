@@ -1,4 +1,4 @@
-import Bus, {encodeFrame, decodeFrame} from "./Bus.js";
+import Bus, {encodeFrame, decodeFrame, createBusFrameData} from "./Bus.js";
 import TFB from "../src.js/tfb.js";
 
 describe("bus",()=>{
@@ -10,6 +10,17 @@ describe("bus",()=>{
 		//console.log(decoded);
 
 		expect(decoded).toEqual({ to: 1, ack: 123, announce_name: 'hello', checksum: 1 });
+	});
+
+	it("can encode bus data",()=>{
+		let data=createBusFrameData(new Uint8Array([1,2,0x7e,3,4]));
+		//console.log(Array.from(data));
+		expect(Array.from(data)).toEqual([
+			126, 1, 2, 125,
+			94, 3, 4, 126
+		]);
+
+		//console.log(data);
 	});
 
 	it("can send and receive",()=>{

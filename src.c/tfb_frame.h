@@ -25,7 +25,7 @@ void tfb_frame_write_num(tfb_frame_t *frame, uint8_t key, int num);
 void tfb_frame_write_checksum(tfb_frame_t *frame);
 char *tfb_frame_sprint(tfb_frame_t *frame, char *s);
 void tfb_frame_reset(tfb_frame_t *frame);
-void tfb_frame_update_resend_deadline(tfb_frame_t *frame);
+//void tfb_frame_update_resend_deadline(tfb_frame_t *frame);
 
 /*bool tfb_frame_rx_is_complete(tfb_frame_t *frame);
 void tfb_frame_rx_push_byte(tfb_frame_t *frame, uint8_t byte);

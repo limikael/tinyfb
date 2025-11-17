@@ -49,14 +49,15 @@ tfb_frame_t *tfb_frame_create(size_t capacity) {
 	frame->capacity=capacity;
 	frame->size=0;
 	frame->resend_count=0;
-	tfb_frame_update_resend_deadline(frame);
+	frame->deadline=TFB_TIME_NEVER;
+	frame->submission_number=0;
 
 	return frame;
 }
 
-void tfb_frame_update_resend_deadline(tfb_frame_t *frame) {
+/*void tfb_frame_update_resend_deadline(tfb_frame_t *frame) {
 	frame->resend_deadline=tfb_time_future(TFB_RESEND_BASE<<(frame->resend_count));
-}
+}*/
 
 tfb_frame_t *tfb_frame_create_from_data(uint8_t *data, size_t size) {
 	tfb_frame_t *frame=tfb_frame_create(size);

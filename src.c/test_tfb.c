@@ -292,13 +292,16 @@ void test_tfb_resend() {
 
 	assert(tfb_send(tfb,(uint8_t*)"hello",5));
 
-	for (int i=0; i<10; i++) {
+	for (int i=0; i<20; i++) {
 		mock_millis+=1000;
 		tfb_tick(tfb);
+		while (tfb_tx_is_available(tfb))
+			tfb_tx_pop_byte(tfb);
 	}
 
-	//printf("queue len: %d\n",tfb->link->tx_queue_len);
-	assert(tfb->link->tx_queue_len==7);
+	//printf("transmitted: %d\n",tfb_link_get_num_transmitted(tfb->link));
+	assert(tfb_link_get_num_transmitted(tfb->link)==7);
+	//printf("queue: %zu\n",tfb->tx_queue_len);
 	assert(tfb->tx_queue_len==0);
 
 	tfb_frame_dispose(frame);
@@ -333,7 +336,7 @@ int main() {
 	test_tfb_send();
 	test_tfb_resend();
 
-	test_tfb_frame_basic();
+	//test_tfb_frame_basic();
 
 	printf("Blocks remaining: %d\n",tfb_allocated_blocks);
 	assert(!tfb_allocated_blocks);

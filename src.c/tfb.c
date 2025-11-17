@@ -84,7 +84,7 @@ tfb_t *tfb_create() {
 	tfb->device_name=NULL;
 	tfb->device_type=NULL;
 	tfb->announcement_deadline=TFB_TIME_NEVER;
-	tfb->activity_deadline=0;
+	tfb->activity_deadline=TFB_TIME_NEVER;
 	tfb->num_devices=0;
 	tfb->devices=NULL;
 	tfb->session_id=0;
@@ -188,12 +188,13 @@ void tfb_set_id(tfb_t *tfb, int id) {
 
 	tfb->id=id;
 	if (!tfb_is_connected(tfb)) {
-		tfb->activity_deadline=0;
+		tfb->activity_deadline=TFB_TIME_NEVER;
 		tfb->inseq=0;
 		tfb->outseq=0;
 	}
 
 	if (tfb_is_connected(tfb)) {
+		tfb->activity_deadline=tfb_time_future(TFB_CONNECTION_TIMEOUT);
 		tfb->inseq=1;
 		tfb->outseq=1;
 	}
@@ -372,12 +373,30 @@ void tfb_handle_frame(tfb_t *tfb, uint8_t *data, size_t size) {
 		tfb_free(name);
 	}
 
-	// handle reset id
+	// handle reset id in device
 	if (tfb_is_device(tfb) &&
 			tfb_is_connected(tfb) &&
 			tfb_frame_get_num(frame,TFB_RESET_TO)==tfb->id) {
 		tfb_set_id(tfb,-1);
 		tfb_announce_device(tfb);
+	}
+
+	// handle connection timeout and reset id in controller
+	if (tfb_is_controller(tfb) &&
+			tfb_frame_has_data(frame,TFB_FROM)) {
+		int from_id=tfb_frame_get_num(frame,TFB_FROM);
+		tfb_device_t *device=tfb_get_device_by_id(tfb,from_id);
+		if (device) {
+			device->activity_deadline=tfb_time_future(TFB_CONNECTION_TIMEOUT);
+		}
+
+		else {
+			tfb_frame_t *resetframe=tfb_frame_create(128);
+			tfb_frame_write_num(resetframe,TFB_SESSION_ID,tfb->session_id);
+			tfb_frame_write_num(resetframe,TFB_RESET_TO,from_id);
+			tfb_send_frame(tfb,resetframe);
+			tfb_frame_dispose(resetframe);
+		}
 	}
 
 	tfb_frame_dispose(frame);
@@ -589,6 +608,7 @@ bool tfb_send(tfb_t *tfb, uint8_t *data, size_t size) {
 	tfb_frame_write_checksum(frame);
 	tfb->tx_queue[tfb->tx_queue_len++]=frame;
 	tfb_link_send(tfb->link,tfb_frame_get_buffer(frame),tfb_frame_get_size(frame));
+	frame->submission_number=tfb_link_get_num_submitted(tfb->link);
 
 	//printf("here... qlen=%d\n",tfb->tx_queue_len);
 
@@ -618,7 +638,7 @@ bool tfb_send_to(tfb_t *tfb, uint8_t *data, size_t size, int to) {
 	tfb_frame_write_data(frame,TFB_PAYLOAD,data,size);
 	tfb_frame_write_checksum(frame);
 	tfb_link_send(tfb->link,tfb_frame_get_buffer(frame),tfb_frame_get_size(frame));
-	tfb_frame_dispose(frame);
+	frame->submission_number=tfb_link_get_num_submitted(tfb->link);
 
 	return true;
 }
@@ -640,12 +660,15 @@ tfb_frame_t *tfb_get_expired_frame(tfb_t *tfb) {
 			return tfb->tx_queue[i];
 
 	return NULL;
-}
+}*/
 
 void tfb_close_device(tfb_t *tfb, tfb_device_t *device) {
-	for (int i=tfb->tx_queue_len-1; i>=0; i--)
-		if (tfb_frame_get_num(tfb->tx_queue[i],TFB_TO)==device->id)
-			tfb_dispose_frame(tfb,tfb->tx_queue[i]);
+	for (int i=tfb->tx_queue_len-1; i>=0; i--) {
+		if (tfb_frame_get_num(tfb->tx_queue[i],TFB_TO)==device->id) {
+			tfb_frame_dispose(tfb->tx_queue[i]);
+			memmove(&tfb->tx_queue[i],&tfb->tx_queue[i+1],(tfb->tx_queue_len-i-1)*sizeof(tfb_frame_t*));
+		}
+	}
 
 	for (int i=tfb->num_devices-1; i>=0; i--)
 		if (tfb->devices[i]==device)
@@ -655,7 +678,7 @@ void tfb_close_device(tfb_t *tfb, tfb_device_t *device) {
 		tfb->device_func(device->name);
 
 	tfb_device_dispose(device);
-}*/
+}
 
 void tfb_tick(tfb_t *tfb) {
 	//int millis=tfb_time_now();
@@ -669,19 +692,38 @@ void tfb_tick(tfb_t *tfb) {
 		tfb->announcement_deadline=tfb_time_future(TFB_ANNOUNCEMENT_INTERVAL);
 	}
 
-	for (int i=tfb->tx_queue_len-1; i>=0; i--) {
-		if (tfb_time_expired(tfb->tx_queue[i]->resend_deadline)) {
-			if (tfb->tx_queue[i]->resend_count>=TFB_RETRIES) {
+	if (tfb_time_expired(tfb->activity_deadline)) {
+		tfb_set_id(tfb,-1);
+	}
+
+	if (tfb_is_controller(tfb)) {
+		for (int i=tfb->num_devices-1; i>=0; i--)
+			if (tfb_time_expired(tfb->devices[i]->activity_deadline))
+				tfb_close_device(tfb,tfb->devices[i]);
+	}
+
+	for (int i=0; i<tfb->tx_queue_len; i++) {
+		tfb_frame_t *frame=tfb->tx_queue[i];
+		if (frame->deadline==TFB_TIME_NEVER) {
+			if (tfb_link_is_transmitted(tfb->link,frame->submission_number)) {
+				frame->deadline=tfb_time_future(TFB_RESEND_BASE<<(frame->resend_count));
+			}
+		}
+
+		else if (tfb_time_expired(frame->deadline)) {
+			if (frame->resend_count>=TFB_RETRIES) {
 				tfb_frame_dispose(tfb->tx_queue[i]);
 				memmove(&tfb->tx_queue[i],&tfb->tx_queue[i+1],(tfb->tx_queue_len-i-1)*sizeof(tfb_frame_t*));
+				i--;
 				tfb->tx_queue_len--;
 			}
 
 			else {
-				tfb_send_frame(tfb,tfb->tx_queue[i]);
-				tfb->tx_queue[i]->resend_count++;
-				tfb_frame_update_resend_deadline(tfb->tx_queue[i]);
-				//printf("resend deadline: %d\n",tfb->tx_queue[i]->resend_deadline);
+				//printf("resending...\n");
+				tfb_send_frame(tfb,frame);
+				frame->resend_count++;
+				frame->submission_number=tfb_link_get_num_submitted(tfb->link);
+				frame->deadline=TFB_TIME_NEVER;
 			}
 		}
 	}
@@ -757,37 +799,18 @@ void tfb_notify_bus_activity(tfb_t *tfb) {
 	tfb_link_notify_bus_activity(tfb->link);
 }
 
-/*bool tfb_is_bus_available(tfb_t *tfb) {
-	if ((int32_t)(tfb_millis() - tfb->bus_available_millis) >= 0)
-		return true;
-
-	return false;
-}*/
-
 void tfb_srand(unsigned int seed) {
 	srand(seed);
 }
-
-/*int tfb_closest_timeout(int a, int b) {
-	if (a<0 && b<0)
-		return -1;
-
-	if (a<0)
-		return b;
-
-	if (b<0)
-		return a;
-
-	return MIN(a,b);
-}*/
 
 tfb_time_t tfb_get_deadline(tfb_t *tfb) {
 	tfb_time_t deadline=TFB_TIME_NEVER;
 
 	deadline=tfb_time_soonest(deadline,tfb->announcement_deadline);
+	deadline=tfb_time_soonest(deadline,tfb->activity_deadline);
 
 	for (int i=0; i<tfb->tx_queue_len; i++)
-		deadline=tfb_time_soonest(deadline,tfb->tx_queue[i]->resend_deadline);
+		deadline=tfb_time_soonest(deadline,tfb->tx_queue[i]->deadline);
 
 	deadline=tfb_time_soonest(deadline,tfb_link_get_deadline(tfb->link));
 

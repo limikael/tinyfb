@@ -24,7 +24,7 @@ typedef uint32_t tfb_time_t;
 #define TFB_RESET_TO 11
 
 #define TFB_RX_BUF_SIZE 1024
-#define TFB_RESEND_BASE 10
+#define TFB_RESEND_BASE 20
 #define TFB_RETRIES 5
 #define TFB_ANNOUNCEMENT_INTERVAL 1000
 #define TFB_CONNECTION_TIMEOUT 5000
@@ -33,9 +33,8 @@ typedef uint32_t tfb_time_t;
 
 #define TFB_TIME_NEVER 0xffffffff
 
-#define TFB_CA_DELAY_MIN 10
-#define TFB_CA_DELAY_MAX 20
-//extern uint32_t (*tfb_millis)();
+#define TFB_CA_DELAY_MIN 5
+#define TFB_CA_DELAY_MAX 10
 
 typedef enum {
 	TFB_LINK_RX_INIT,
@@ -68,7 +67,7 @@ struct tfb_link {
 struct tfb_device {
 	char *name,*type;
 	int id;
-	uint32_t activity_deadline;
+	tfb_time_t activity_deadline;
 	int inseq,outseq;
 };
 
@@ -76,7 +75,7 @@ struct tfb {
 	tfb_link_t *link;
 	int id, outseq, inseq;
 	char *device_name,*device_type;
-	uint32_t announcement_deadline,activity_deadline;
+	tfb_time_t announcement_deadline,activity_deadline;
 	void (*message_func)(uint8_t *data, size_t size);
 	void (*message_from_func)(uint8_t *data, size_t size, int from);
 	void (*device_func)(char *name);
@@ -93,5 +92,6 @@ struct tfb_frame {
 	uint8_t *buffer;
 	size_t size, capacity;
 	int resend_count;
-	uint32_t resend_deadline;
+	tfb_time_t deadline;
+	uint32_t submission_number;
 };

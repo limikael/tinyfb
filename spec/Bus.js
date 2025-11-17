@@ -41,7 +41,7 @@ export default class Bus extends EventEmitter {
 	}
 
 	writeFrame(frame_object) {
-		this.write(encodeFrame(frame_object));
+		this.write(createBusFrameData(encodeFrame(frame_object)));
 	}
 
 	write(data) {
@@ -133,4 +133,23 @@ export function decodeFrame(frameData) {
 	TFB.tfb_frame_dispose(frame);
 
 	return frame_object;
+}
+
+export function createBusFrameData(data) {
+	let busBytes=[];
+
+	busBytes.push(0x7e);
+	for (let byte of data) {
+		if (byte==0x7e || byte==0x7d) {
+			busBytes.push(0x7d);
+			busBytes.push(byte^0x20);
+		}
+
+		else {
+			busBytes.push(byte);
+		}
+	}
+	busBytes.push(0x7e);
+
+	return new Uint8Array(busBytes);
 }

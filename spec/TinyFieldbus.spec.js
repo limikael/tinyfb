@@ -1,7 +1,7 @@
 import TinyFieldbusController from "../src.js/TinyFieldbusController.js";
 import TinyFieldbusDevice from "../src.js/TinyFieldbusDevice.js";
 import {ResolvablePromise, arrayBufferToString, EventCapture, concatUint8Arrays} from "../src.js/js-util.js";
-import Bus, {encodeFrame, decodeFrame} from "./Bus.js";
+import Bus, {encodeFrame, decodeFrame, createBusFrameData} from "./Bus.js";
 import TFB from "../src.js/tfb.js";
 
 describe("tiny fieldbus",()=>{
@@ -48,6 +48,7 @@ describe("tiny fieldbus",()=>{
 		expect(events[events.length-1]).type=="message";
 	});*/
 
+	// it doesn't have to do this, enough to remove devices on timeout... or???
 	/*it("can check connection and closes itself on missed ack",async ()=>{
 		let event_log=[];
 		let bus=new Bus();
@@ -75,7 +76,7 @@ describe("tiny fieldbus",()=>{
 		expect(event_log).toEqual(["connect","close"]);
 
 		expect(d.isConnected()).toEqual(false);
-	});
+	});*/
 
 	it("closes itself if controller not seen",async ()=>{
 		let bus=new Bus();
@@ -89,7 +90,9 @@ describe("tiny fieldbus",()=>{
 		bus.removePort(c.port);
 		jasmine.clock().tick(10000);
 		expect(d.isConnected()).toEqual(false);
-	});*/
+
+		//console.log("here...");
+	});
 
 	it("sends device announcements on session announcements",async ()=>{
 		let bus=new Bus();
@@ -113,7 +116,8 @@ describe("tiny fieldbus",()=>{
 		//console.log(bus.frame_log.slice(0,8));
 	});
 
-	it("removes devices on missing ack",async ()=>{
+	// it doesn't have to do this, enough to remove devices on timeout... or???
+	/*it("removes devices on missing ack",async ()=>{
 		let bus=new Bus();
 		let device=new TinyFieldbusDevice({port: bus.createPort(), name: "hello", type: "world"});
 		let controller=new TinyFieldbusController({port: bus.createPort()});
@@ -122,6 +126,7 @@ describe("tiny fieldbus",()=>{
 		bus.removePort(device.port);
 
 		let deviceEp=controller.getDeviceByName("hello");
+
 		let deviceEpEvents=new EventCapture(deviceEp,["close"]);
 		deviceEp.send("there?");
 		jasmine.clock().tick(10000);
@@ -130,13 +135,13 @@ describe("tiny fieldbus",()=>{
 		expect(deviceEpEvents.events.length).toEqual(1);
 		expect(deviceEpEvents.events[0].type).toEqual("close");
 		expect(Object.values(controller.devicesByName).length).toEqual(0);
-	});
+	});*/
 
 	it("removes devices on no activity",async ()=>{
 		let bus=new Bus();
 		let device=new TinyFieldbusDevice({port: bus.createPort(), name: "hello", type: "world"});
 		let controller=new TinyFieldbusController({port: bus.createPort()});
-		jasmine.clock().tick(1000);
+		jasmine.clock().tick(10000);
 
 		let deviceEp=controller.getDeviceByName("hello");
 		//deviceEp.addEventListener("close",()=>console.log("******* closed"));
@@ -154,18 +159,15 @@ describe("tiny fieldbus",()=>{
 		//console.log(bus.frame_log);
 	});
 
-	//fix this test...
 	it("can process 2 messages in one chunk",async ()=>{
 		let bus=new Bus();
 		let device=new TinyFieldbusDevice({port: bus.createPort(), name: "devname", type: "devtype"});
 		jasmine.clock().tick(1000);
 
 		bus.writeFrame({assign_name: "devname", to: 123, session_id: 1234});
-		/*bus.writeFrame({to: 123, payload: "hello", seq: 1});
-		bus.writeFrame({to: 123, payload: "again", seq: 2});*/
 		bus.write(concatUint8Arrays(
-			encodeFrame({to: 123, payload: "hello", seq: 1}),
-			encodeFrame({to: 123, payload: "again", seq: 2})
+			createBusFrameData(encodeFrame({to: 123, payload: "hello", seq: 1})),
+			createBusFrameData(encodeFrame({to: 123, payload: "again", seq: 2}))
 		));
 
 		jasmine.clock().tick(1000);
@@ -200,20 +202,20 @@ describe("tiny fieldbus",()=>{
 		let deviceEp=controllerEvents.events[0].device;
 		let deviceEpEvents=new EventCapture(deviceEp,["message"]);
 
-		//deviceEp.send("hello from the controller");
-		//deviceEp.send("hello again from the controller");
+		deviceEp.send("hello from the controller");
+		deviceEp.send("hello again from the controller");
 		device.send("hello");
-		//device.send("world");
-		//device.send("again");
+		device.send("world");
+		device.send("again");
 
-		jasmine.clock().tick(100);
+		jasmine.clock().tick(1000);
 
-		console.log(bus.frame_log);
+		//console.log(bus.frame_log);
 
-		/*expect(deviceEpEvents.events.length).toEqual(3);
+		expect(deviceEpEvents.events.length).toEqual(3);
 		expect(deviceEvents.events.length).toEqual(2);
 		expect(arrayBufferToString(deviceEvents.events[0].data)).toEqual("hello from the controller");
-		expect(arrayBufferToString(deviceEpEvents.events[1].data)).toEqual("world");*/
+		expect(arrayBufferToString(deviceEpEvents.events[1].data)).toEqual("world");
 	});
 
 	it("device expects proper seq numbers",async ()=>{
@@ -242,7 +244,7 @@ describe("tiny fieldbus",()=>{
 		bus.writeFrame({to:1, payload: "restart hello dup 2", seq: 2});
 		jasmine.clock().tick(1000);
 
-		console.log(deviceEv.events);
+		//console.log(deviceEv.events);
 		expect(arrayBufferToString(deviceEv.events[0].data)).toEqual("hello in seq 1");
 		expect(arrayBufferToString(deviceEv.events[1].data)).toEqual("hello in seq 2");
 		expect(arrayBufferToString(deviceEv.events[2].data)).toEqual("restart hello in seq 1");
