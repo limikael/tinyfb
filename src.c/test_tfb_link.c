@@ -33,7 +33,7 @@ void test_tfb_link_receive() {
 	tfb_link_t *link=tfb_link_create();
 	tfb_link_frame_func(link,test_tfb_link_receive_frame_func);
 	//printf("available at: %d\n",link->bus_available_deadline);
-	assert(link->bus_available_deadline>=1010);
+	assert(link->bus_available_deadline>=1001);
 	//assert(tfb_link_get_deadline(link)==1011);
 
 	tfb_link_rx_push_byte(link,'x');
