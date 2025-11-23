@@ -12,6 +12,7 @@ void test_tfb_stream_recv();
 void test_tfb_stream_seq_numbers();
 void test_tfb_controller_create();
 void test_tfb_controller_assign();
+void test_tfb_sock_create();
 
 int main() {
 	printf("Running tests...\n");
@@ -26,6 +27,7 @@ int main() {
 	test_tfb_controller_create();
 	test_tfb_controller_assign();
 	test_tfb_stream_seq_numbers();
+	test_tfb_sock_create();
 
 	printf("Blocks remaining: %d\n",tfb_allocated_blocks);
 	assert(!tfb_allocated_blocks);
