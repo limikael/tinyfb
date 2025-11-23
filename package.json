@@ -1,14 +1,13 @@
 {
-  "name": "emtest",
+  "name": "tinyfb",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
     "test": "pnpm test:c && pnpm test:js",
-    "test:js": "pnpm build:emcc && jasmine",
     "test:c": "pnpm build:emcc:test && node target/tfb_test.cjs",
-    "build:emcc": "emcc @emcc_flags.rsp src.c/tfb.c src.c/tfb_frame.c src.c/tfb_util.c src.c/tfb_device.c -otarget/tfb.js",
-    "build:emcc:test": "emcc src.c/tfb*.c src.c/test*.c -otarget/tfb_test.cjs"
+    "test:js": "pnpm build:emcc && jasmine",
+    "build:emcc": "emcc @emcc_flags.rsp src/*.c -odist/tfb.js",
+    "build:emcc:test": "emcc src/*.c test/*.c -Isrc -otarget/tfb_test.cjs"
   },
   "type": "module",
   "keywords": [],

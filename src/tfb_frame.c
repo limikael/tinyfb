@@ -1,6 +1,6 @@
 #include "tfb_frame.h"
-#include "tfb.h"
-#include "tfb_internal.h"
+#include "tfb_util.h"
+//#include "tfb.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -48,27 +48,23 @@ tfb_frame_t *tfb_frame_create(size_t capacity) {
 	frame->buffer=tfb_malloc(capacity);
 	frame->capacity=capacity;
 	frame->size=0;
-	frame->rx_state=RX_RECEIVE;
-	frame->tx_state=TX_INIT;
-	frame->tx_index=0;
-	frame->send_at=tfb_millis();
-	frame->sent_times=0;
-	frame->tfb=NULL;
-	frame->notification_func=NULL;
+	frame->resend_count=0;
+	frame->deadline=TFB_TIME_NEVER;
+	frame->submission_number=0;
 
 	return frame;
 }
 
-void tfb_frame_set_notification_func(tfb_frame_t *frame, tfb_t *tfb, void (*func)(tfb_t *tfb, tfb_frame_t *tfb_frame)) {
-	frame->tfb=tfb;
-	frame->notification_func=func;
-}
+/*void tfb_frame_update_resend_deadline(tfb_frame_t *frame) {
+	frame->resend_deadline=tfb_time_future(TFB_RESEND_BASE<<(frame->resend_count));
+}*/
 
-void tfb_frame_notify(tfb_frame_t *frame) {
-	if (!frame->notification_func)
-		return;
+tfb_frame_t *tfb_frame_create_from_data(uint8_t *data, size_t size) {
+	tfb_frame_t *frame=tfb_frame_create(size);
+	memcpy(frame->buffer,data,size);
+	frame->size=size;
 
-	frame->notification_func(frame->tfb,frame);
+	return frame;
 }
 
 void tfb_frame_dispose(tfb_frame_t *frame) {
@@ -76,97 +72,16 @@ void tfb_frame_dispose(tfb_frame_t *frame) {
 	tfb_free(frame);
 }
 
-void tfb_frame_rx_push_byte(tfb_frame_t *frame, uint8_t byte) {
-	if (frame->rx_state==RX_COMPLETE)
-		return;
-
-	if (frame->rx_state==RX_ESCAPE) {
-		frame->buffer[frame->size++]=byte^0x20;
-		frame->rx_state=RX_RECEIVE;
-		return;
-	}
-
-	if (byte==0x7d) {
-		frame->rx_state=RX_ESCAPE;
-		return;
-	}
-
-	if (byte==0x7e) {
-		if (frame->size)
-			frame->rx_state=RX_COMPLETE;
-
-		return;
-	}
-
-	frame->buffer[frame->size++]=byte;
-}
-
-bool tfb_frame_rx_is_complete(tfb_frame_t *frame) {
-	return (frame->rx_state==RX_COMPLETE);
-}
-
 size_t tfb_frame_get_size(tfb_frame_t *frame) {
 	return frame->size;
 }
 
+uint8_t *tfb_frame_get_buffer(tfb_frame_t *frame) {
+	return frame->buffer;
+}
+
 uint8_t tfb_frame_get_buffer_at(tfb_frame_t *frame, size_t index) {
 	return frame->buffer[index];
-}
-
-void tfb_frame_reset(tfb_frame_t *frame) {
-	tfb_frame_tx_rewind(frame);
-	frame->size=0;
-	frame->rx_state=RX_RECEIVE;
-}
-
-bool tfb_frame_tx_is_available(tfb_frame_t *frame) {
-	if (!frame->size)
-		return false;
-
-	if (frame->tx_state==TX_COMPLETE)
-		return false;
-
-	return true;
-}
-
-uint8_t tfb_frame_tx_pop_byte(tfb_frame_t *frame) {
-	if (!tfb_frame_tx_is_available(frame))
-		return 0x7e;
-
-	switch (frame->tx_state) {
-		case TX_INIT:
-			frame->tx_state=TX_SENDING;
-			return 0x7e;
-			break;
-
-		case TX_ESCAPING:
-			frame->tx_state=TX_SENDING;
-			return (0x20^frame->buffer[frame->tx_index++]);
-			break;
-
-		case TX_SENDING:
-			if (frame->tx_index>=frame->size) {
-				frame->tx_state=TX_COMPLETE;
-				return 0x7e;
-			}
-
-			if (frame->buffer[frame->tx_index]==0x7d ||
-					frame->buffer[frame->tx_index]==0x7e) {
-				frame->tx_state=TX_ESCAPING;
-				return 0x7d;
-			}
-
-			return frame->buffer[frame->tx_index++];
-			break;
-
-		case TX_COMPLETE:
-			return 0x7e;
-	}
-}
-
-void tfb_frame_tx_rewind(tfb_frame_t *frame) {
-	frame->tx_state=TX_INIT;
-	frame->tx_index=0;
 }
 
 void tfb_frame_write_byte(tfb_frame_t *frame, uint8_t byte) {
@@ -342,11 +257,11 @@ char *tfb_frame_sprint(tfb_frame_t *frame, char *s) {
 			case TFB_CHECKSUM: keyname="checksum"; break;
 			case TFB_FROM: keyname="from"; break;
 			case TFB_TO: keyname="to"; break;
-			case TFB_PAYLOAD: keyname="payload"; break;
+			case TFB_PAYLOAD: keyname="payload"; isdata=1; break;
 			case TFB_SEQ: keyname="seq"; break;
 			case TFB_ACK: keyname="ack"; break;
 			case TFB_ANNOUNCE_NAME: keyname="announce_name"; isdata=1; break;
-			case TFB_ANNOUNCE_TYPE: keyname="announce_type"; isdata=1; break;
+			//case TFB_ANNOUNCE_TYPE: keyname="announce_type"; isdata=1; break;
 			case TFB_ASSIGN_NAME: keyname="assign_name"; isdata=1; break;
 			case TFB_SESSION_ID: keyname="session_id"; break;
 		}
@@ -383,4 +298,8 @@ int tfb_frame_strcmp(tfb_frame_t *frame, uint8_t key, char *s) {
 			return -1;
 
 	return 0;
+}
+
+void tfb_frame_reset(tfb_frame_t *frame) {
+	frame->size=0;
 }
