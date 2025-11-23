@@ -32,7 +32,7 @@ void test_tfb_controller_create() {
 }
 
 void test_tfb_controller_assign() {
-	printf("- Controller assigns device ids.\n");
+	printf("- Controller assigns stream ids.\n");
 
 	mockpipe_t *pipe=mockpipe_create();
 	framesniffer_t *sniffer=framesniffer_create(pipe->b);
@@ -59,8 +59,8 @@ void test_tfb_controller_assign() {
 		printf("%s\n",framesniffer_sprint_frame_at(sniffer,i));*/
 
 	assert(strstr(framesniffer_sprint_last(sniffer),"assign_name: (5) 'hello' to:"));
-	assert(controller->num_devices==1);
-	assert(controller->devices[0]->id==1);
+	assert(controller->num_streams==1);
+	assert(controller->streams[0]->id==1);
 
 	tfb_controller_dispose(controller);
 	framesniffer_dispose(sniffer);

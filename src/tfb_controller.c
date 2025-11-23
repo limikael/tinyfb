@@ -6,42 +6,42 @@
 #include <stdio.h>
 #include <string.h>
 
-void tfb_controller_device_func(tfb_controller_t *controller, void (*device_func)(tfb_controller_t *controller, tfb_device_t *device)) {
-	controller->device_func=device_func;
+void tfb_controller_stream_func(tfb_controller_t *controller, void (*stream_func)(tfb_controller_t *controller, tfb_stream_t *stream)) {
+	controller->stream_func=stream_func;
 }
 
 tfb_controller_t *tfb_controller_create(tfb_physical_t *physical) {
 	tfb_controller_t *controller=tfb_malloc(sizeof(tfb_controller_t));
 
 	controller->link=tfb_link_create(physical);
-	controller->num_devices=0;
+	controller->num_streams=0;
 	controller->session_id=(rand()%32000)+1;
 	controller->announcement_deadline=tfb_time_now(physical);
-	controller->device_func=NULL;
+	controller->stream_func=NULL;
 
 	return controller;
 }
 
 void tfb_controller_dispose(tfb_controller_t *controller) {
-	for (int i=0; i<controller->num_devices; i++)
-		tfb_device_dispose(controller->devices[i]);
+	for (int i=0; i<controller->num_streams; i++)
+		tfb_stream_dispose(controller->streams[i]);
 
 	tfb_link_dispose(controller->link);
 	tfb_free(controller);
 }
 
-tfb_device_t *tfb_controller_get_device_by_name(tfb_controller_t *controller, char *name) {
-	for (int i=0; i<controller->num_devices; i++)
-		if (!strcmp(name,controller->devices[i]->name))
-			return controller->devices[i];
+tfb_stream_t *tfb_controller_get_stream_by_name(tfb_controller_t *controller, char *name) {
+	for (int i=0; i<controller->num_streams; i++)
+		if (!strcmp(name,controller->streams[i]->name))
+			return controller->streams[i];
 
 	return NULL;
 }
 
-tfb_device_t *tfb_controller_get_device_by_id(tfb_controller_t *controller, int id) {
-	for (int i=0; i<controller->num_devices; i++)
-		if (id==controller->devices[i]->id)
-			return controller->devices[i];
+tfb_stream_t *tfb_controller_get_stream_by_id(tfb_controller_t *controller, int id) {
+	for (int i=0; i<controller->num_streams; i++)
+		if (id==controller->streams[i]->id)
+			return controller->streams[i];
 
 	return NULL;
 }
@@ -53,12 +53,12 @@ bool tfb_controller_send_frame(tfb_controller_t *controller, tfb_frame_t *frame,
 	return tfb_link_send(controller->link,tfb_frame_get_buffer(frame),tfb_frame_get_size(frame),flags);
 }
 
-int tfb_controller_get_available_device_id(tfb_controller_t *controller) {
+int tfb_controller_get_available_stream_id(tfb_controller_t *controller) {
 	int max_id=0;
 
-	for (int i=0; i<controller->num_devices; i++)
-		if (controller->devices[i]->id>max_id)
-			max_id=controller->devices[i]->id;
+	for (int i=0; i<controller->num_streams; i++)
+		if (controller->streams[i]->id>max_id)
+			max_id=controller->streams[i]->id;
 
 	return max_id+1;
 }
@@ -66,20 +66,20 @@ int tfb_controller_get_available_device_id(tfb_controller_t *controller) {
 void tfb_controller_handle_frame(tfb_controller_t *controller, tfb_frame_t *frame) {
 	if (tfb_frame_has_data(frame,TFB_ANNOUNCE_NAME)) {
 		char *name=tfb_frame_get_strdup(frame,TFB_ANNOUNCE_NAME);
-		tfb_device_t *device=tfb_controller_get_device_by_name(controller,name);
-		if (!device) {
-			int id=tfb_controller_get_available_device_id(controller);
-			//printf("creating device id: %d\n",id);
-			device=tfb_device_create_controlled(controller->link,id,name);
-			controller->devices[controller->num_devices++]=device;
-			if (controller->device_func)
-				controller->device_func(controller,device);
+		tfb_stream_t *stream=tfb_controller_get_stream_by_name(controller,name);
+		if (!stream) {
+			int id=tfb_controller_get_available_stream_id(controller);
+			//printf("creating stream id: %d\n",id);
+			stream=tfb_stream_create_controlled(controller->link,id,name);
+			controller->streams[controller->num_streams++]=stream;
+			if (controller->stream_func)
+				controller->stream_func(controller,stream);
 		}
 
 		//printf("sending assign...\n");
 		tfb_frame_t *assignframe=tfb_frame_create(256);
 		tfb_frame_write_data(assignframe,TFB_ASSIGN_NAME,(uint8_t*)name,strlen(name));
-		tfb_frame_write_num(assignframe,TFB_TO,device->id);
+		tfb_frame_write_num(assignframe,TFB_TO,stream->id);
 		tfb_frame_write_num(assignframe,TFB_SESSION_ID,controller->session_id);
 		tfb_controller_send_frame(controller,assignframe,0);
 		tfb_frame_dispose(assignframe);
@@ -87,14 +87,14 @@ void tfb_controller_handle_frame(tfb_controller_t *controller, tfb_frame_t *fram
 	}
 
 	if (tfb_frame_has_data(frame,TFB_FROM) &&
-			!tfb_controller_get_device_by_id(controller,tfb_frame_get_num(frame,TFB_FROM))) {
+			!tfb_controller_get_stream_by_id(controller,tfb_frame_get_num(frame,TFB_FROM))) {
 		tfb_frame_t *resetframe=tfb_frame_create(256);
 		tfb_frame_write_num(resetframe,TFB_RESET_TO,tfb_frame_get_num(frame,TFB_FROM));
 		tfb_frame_write_num(resetframe,TFB_SESSION_ID,controller->session_id);
 		tfb_controller_send_frame(controller,resetframe,0);
 		tfb_frame_dispose(resetframe);
 
-		printf("unknown device!!!\n");
+		printf("unknown stream!!!\n");
 	}
 }
 
@@ -110,15 +110,15 @@ void tfb_controller_tick(tfb_controller_t *controller) {
 		controller->announcement_deadline=tfb_time_future(controller->link->physical,TFB_ANNOUNCEMENT_INTERVAL);
 	}
 
-	//for (int i=0; i<controller->num_devices; i++) {
-	for (int i=controller->num_devices-1; i>=0; i--) {
-		tfb_device_tick(controller->devices[i]);
-		if (!tfb_device_is_connected(controller->devices[i])) {
-			//printf("** removing device\n");
-			tfb_device_t *device=controller->devices[i];
-			controller->num_devices--;
-			memmove(&controller->devices[i],&controller->devices[i+1],(controller->num_devices-i)*sizeof(controller->devices[0]));
-			tfb_device_dispose(device);
+	//for (int i=0; i<controller->num_streams; i++) {
+	for (int i=controller->num_streams-1; i>=0; i--) {
+		tfb_stream_tick(controller->streams[i]);
+		if (!tfb_stream_is_connected(controller->streams[i])) {
+			//printf("** removing stream\n");
+			tfb_stream_t *stream=controller->streams[i];
+			controller->num_streams--;
+			memmove(&controller->streams[i],&controller->streams[i+1],(controller->num_streams-i)*sizeof(controller->streams[0]));
+			tfb_stream_dispose(stream);
 		}
 	}
 
@@ -140,8 +140,8 @@ tfb_time_t tfb_controller_get_deadline(tfb_controller_t *controller) {
 	deadline=tfb_time_soonest(deadline,tfb_link_get_deadline(controller->link));
 	deadline=tfb_time_soonest(deadline,controller->announcement_deadline);
 
-	for (int i=0; i<controller->num_devices; i++)
-		deadline=tfb_time_soonest(deadline,tfb_device_get_deadline(controller->devices[i]));
+	for (int i=0; i<controller->num_streams; i++)
+		deadline=tfb_time_soonest(deadline,tfb_stream_get_deadline(controller->streams[i]));
 
 	return deadline;
 }
