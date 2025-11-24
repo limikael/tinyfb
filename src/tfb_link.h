@@ -6,8 +6,7 @@
 #include "tfb_physical.h"
 #include "tfb_time.h"
 
-#define TFB_LINK_RX_BUF_SIZE 256
-#define TFB_LINK_TX_BUF_SIZE 256
+#define TFB_BUFSIZE 64
 #define TFB_CA_DELAY_MIN 2
 #define TFB_CA_DELAY_MAX 5
 #define TFB_LINK_QUEUE_LEN 8
@@ -24,11 +23,11 @@ typedef enum {
 
 struct tfb_link {
 	tfb_physical_t *physical;
-	uint8_t rx_buf[TFB_LINK_RX_BUF_SIZE];
+	uint8_t rx_buf[TFB_BUFSIZE];
 	uint32_t rx_size;
 	tfb_link_rx_state_t rx_state;
 	tfb_time_t bus_available_deadline;
-	uint8_t tx_buf[TFB_LINK_TX_BUF_SIZE];
+	uint8_t tx_buf[TFB_BUFSIZE];
 	uint32_t tx_size;
 };
 

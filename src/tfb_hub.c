@@ -3,7 +3,7 @@
 #include "tfb_util.h"
 #include "tfb_frame.h"
 #include "tfb_time.h"
-#include "tfb_stream.h"
+#include "tfb_sock.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -19,7 +19,6 @@ tfb_hub_t *tfb_hub_create(tfb_physical_t *physical) {
 	hub->session_id=(rand()%32000)+1;
 	hub->announcement_deadline=tfb_time_now(physical);
 	hub->event_func=NULL;
-	hub->proto=1;
 
 	return hub;
 }
@@ -34,7 +33,7 @@ void tfb_hub_dispose(tfb_hub_t *hub) {
 
 tfb_sock_t *tfb_hub_get_sock_by_name(tfb_hub_t *hub, char *name) {
 	for (int i=0; i<hub->num_socks; i++)
-		if (!strcmp(name,tfb_sock_get_name(hub->socks[i])))
+		if (!strcmp(name,hub->socks[i]->name))
 			return hub->socks[i];
 
 	return NULL;
@@ -42,7 +41,7 @@ tfb_sock_t *tfb_hub_get_sock_by_name(tfb_hub_t *hub, char *name) {
 
 tfb_sock_t *tfb_hub_get_sock_by_id(tfb_hub_t *hub, int id) {
 	for (int i=0; i<hub->num_socks; i++)
-		if (id==tfb_sock_get_id(hub->socks[i]))
+		if (id==hub->socks[i]->id)
 			return hub->socks[i];
 
 	return NULL;
@@ -59,8 +58,8 @@ int tfb_hub_get_available_sock_id(tfb_hub_t *hub) {
 	int max_id=0;
 
 	for (int i=0; i<hub->num_socks; i++)
-		if (tfb_sock_get_id(hub->socks[i])>max_id)
-			max_id=tfb_sock_get_id(hub->socks[i]);
+		if (hub->socks[i]->id>max_id)
+			max_id=hub->socks[i]->id;
 
 	return max_id+1;
 }
@@ -72,7 +71,7 @@ void tfb_hub_handle_frame(tfb_hub_t *hub, tfb_frame_t *frame) {
 		if (!sock) {
 			int id=tfb_hub_get_available_sock_id(hub);
 			//printf("creating sock id: %d\n",id);
-			sock=tfb_sock_create_controlled(hub->link,id,name,hub->proto);
+			sock=tfb_sock_create_controlled(hub->link,name,id);
 			hub->socks[hub->num_socks++]=sock;
 			if (hub->event_func)
 				hub->event_func(hub,TFB_EVENT_CONNECT);
@@ -81,7 +80,7 @@ void tfb_hub_handle_frame(tfb_hub_t *hub, tfb_frame_t *frame) {
 		//printf("sending assign...\n");
 		tfb_frame_t *assignframe=tfb_frame_create(256);
 		tfb_frame_write_data(assignframe,TFB_ASSIGN_NAME,(uint8_t*)name,strlen(name));
-		tfb_frame_write_num(assignframe,TFB_TO,tfb_sock_get_id(sock));
+		tfb_frame_write_num(assignframe,TFB_TO,sock->id);
 		tfb_frame_write_num(assignframe,TFB_SESSION_ID,hub->session_id);
 		tfb_hub_send_frame(hub,assignframe,0);
 		tfb_frame_dispose(assignframe);

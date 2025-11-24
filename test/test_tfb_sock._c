@@ -1,0 +1,34 @@
+#include <stdio.h>
+#include "tfb_sock.h"
+#include "test_helpers.h"
+#include <assert.h>
+#include <string.h>
+
+void test_tfb_sock_create() {
+	printf("- Create and dispose sock.\n");
+
+	mockpipe_t *pipe=mockpipe_create();
+	framesniffer_t *sniffer=framesniffer_create(pipe->b);
+	tfb_sock_t *sock=tfb_sock_create(pipe->a,"hello",TFB_PROTO_STREAM);
+
+	mockpipe_tick(pipe,100);
+	tfb_sock_tick(sock);
+
+	/*for (int i=0; i<framesniffer_get_num_frames(sniffer); i++)
+		printf("%s\n",framesniffer_sprint_frame_at(sniffer,i));*/
+
+	assert(strstr(framesniffer_sprint_last(sniffer),"announce_name: (5) 'hello'"));
+
+	tfb_frame_t *frame=tfb_frame_create(1024);
+	tfb_frame_write_data(frame,TFB_ASSIGN_NAME,(uint8_t *)"hello",5);
+	tfb_frame_write_num(frame,TFB_TO,123);
+	framesniffer_send_frame(sniffer,frame);
+	tfb_frame_dispose(frame);
+
+	tfb_sock_tick(sock);
+	assert(tfb_sock_get_id(sock)==123);
+
+	tfb_sock_dispose(sock);
+	framesniffer_dispose(sniffer);
+	mockpipe_dispose(pipe);
+}

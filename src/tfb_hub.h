@@ -21,7 +21,6 @@ struct tfb_hub {
 	tfb_sock_t *socks[16];
 	size_t num_socks;
 	void (*event_func)(tfb_hub_t *hub, int event);
-	int proto;
 };
 
 tfb_hub_t *tfb_hub_create(tfb_physical_t *physical);

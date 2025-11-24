@@ -78,7 +78,7 @@ void tfb_link_handle_rx_byte(tfb_link_t *link, uint8_t byte) {
 			break;
 
 		default:
-			if (link->rx_size<TFB_LINK_RX_BUF_SIZE) {
+			if (link->rx_size<TFB_BUFSIZE) {
 				if (link->rx_state==TFB_LINK_RX_ESCAPE)
 					link->rx_buf[link->rx_size++]=byte^0x20;
 

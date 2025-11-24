@@ -61,7 +61,7 @@ void test_tfb_hub_assign() {
 
 	assert(strstr(framesniffer_sprint_last(sniffer),"assign_name: (5) 'hello' to:"));
 	assert(hub->num_socks==1);
-	assert(tfb_sock_get_id(hub->socks[0]));
+	assert(hub->socks[0]->id);
 
 	tfb_hub_dispose(hub);
 	framesniffer_dispose(sniffer);
