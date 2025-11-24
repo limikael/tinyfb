@@ -20,7 +20,7 @@ struct tfb_hub {
 	tfb_time_t announcement_deadline;
 	tfb_sock_t *socks[16];
 	size_t num_socks;
-	void (*connect_func)(tfb_hub_t *hub, tfb_sock_t *sock);
+	void (*event_func)(tfb_hub_t *hub, int event);
 	int proto;
 };
 
@@ -29,4 +29,5 @@ void tfb_hub_dispose(tfb_hub_t *hub);
 void tfb_hub_tick(tfb_hub_t *hub);
 tfb_time_t tfb_hub_get_deadline(tfb_hub_t *hub);
 int tfb_hub_get_timeout(tfb_hub_t *hub);
-void tfb_hub_connect_func(tfb_hub_t *hub, void (*connect_func)(tfb_hub_t *hub, tfb_sock_t *sock));
+void tfb_hub_event_func(tfb_hub_t *hub, void (*event_func)(tfb_hub_t *hub, int event));
+tfb_sock_t *tfb_hub_accept(tfb_hub_t *hub);

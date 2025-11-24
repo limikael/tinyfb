@@ -3,11 +3,12 @@
 #include "tfb_util.h"
 #include "tfb_frame.h"
 #include "tfb_time.h"
+#include "tfb_stream.h"
 #include <stdio.h>
 #include <string.h>
 
-void tfb_hub_connect_func(tfb_hub_t *hub, void (*connect_func)(tfb_hub_t *hub, tfb_sock_t *sock)) {
-	hub->connect_func=connect_func;
+void tfb_hub_event_func(tfb_hub_t *hub, void (*event_func)(tfb_hub_t *hub, int event)) {
+	hub->event_func=event_func;
 }
 
 tfb_hub_t *tfb_hub_create(tfb_physical_t *physical) {
@@ -17,7 +18,7 @@ tfb_hub_t *tfb_hub_create(tfb_physical_t *physical) {
 	hub->num_socks=0;
 	hub->session_id=(rand()%32000)+1;
 	hub->announcement_deadline=tfb_time_now(physical);
-	hub->connect_func=NULL;
+	hub->event_func=NULL;
 	hub->proto=1;
 
 	return hub;
@@ -73,8 +74,8 @@ void tfb_hub_handle_frame(tfb_hub_t *hub, tfb_frame_t *frame) {
 			//printf("creating sock id: %d\n",id);
 			sock=tfb_sock_create_controlled(hub->link,id,name,hub->proto);
 			hub->socks[hub->num_socks++]=sock;
-			if (hub->connect_func)
-				hub->connect_func(hub,sock);
+			if (hub->event_func)
+				hub->event_func(hub,TFB_EVENT_CONNECT);
 		}
 
 		//printf("sending assign...\n");
@@ -149,4 +150,15 @@ tfb_time_t tfb_hub_get_deadline(tfb_hub_t *hub) {
 
 int tfb_hub_get_timeout(tfb_hub_t *hub) {
 	return tfb_time_timeout(hub->link->physical,tfb_hub_get_deadline(hub));
+}
+
+tfb_sock_t *tfb_hub_accept(tfb_hub_t *hub) {
+	for (int i=0; i<hub->num_socks; i++) {
+		if (!hub->socks[i]->accepted) {
+			hub->socks[i]->accepted=true;
+			return hub->socks[i];
+		}
+	}
+
+	return NULL;
 }

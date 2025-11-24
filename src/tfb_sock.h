@@ -8,6 +8,7 @@ typedef struct tfb_sock tfb_sock_t;
 struct tfb_sock {
 	tfb_stream_t *stream;
 	int proto;
+	bool accepted;
 	void (*event_func)(tfb_sock_t *sock, int event);
 };
 

@@ -21,4 +21,5 @@ _tfb_sock_available,\
 _tfb_hub_create,\
 _tfb_hub_tick,\
 _tfb_hub_get_timeout,\
-_tfb_hub_connect_func
+_tfb_hub_event_func,\
+_tfb_hub_accept

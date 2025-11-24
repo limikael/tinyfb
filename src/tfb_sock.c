@@ -13,6 +13,7 @@ tfb_sock_t *tfb_sock_create(tfb_physical_t *physical, char *name, int proto) {
 
 	sock->stream=tfb_stream_create(physical,name);
 	sock->stream->tag=sock;
+	sock->accepted=false;
 	tfb_stream_event_func(sock->stream,tfb_sock_handle_stream_event);
 
 	return sock;
@@ -23,6 +24,7 @@ tfb_sock_t *tfb_sock_create_controlled(tfb_link_t *link, int id, char *name, int
 
 	sock->stream=tfb_stream_create_controlled(link,name,id);
 	sock->stream->tag=sock;
+	sock->accepted=false;
 	tfb_stream_event_func(sock->stream,tfb_sock_handle_stream_event);
 
 	return sock;
