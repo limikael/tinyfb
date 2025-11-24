@@ -10,8 +10,8 @@ void test_tfb_stream_create();
 void test_tfb_stream_send();
 void test_tfb_stream_recv();
 void test_tfb_stream_seq_numbers();
-void test_tfb_controller_create();
-void test_tfb_controller_assign();
+void test_tfb_hub_create();
+void test_tfb_hub_assign();
 void test_tfb_sock_create();
 
 int main() {
@@ -24,8 +24,8 @@ int main() {
 	test_tfb_stream_create();
 	test_tfb_stream_send();
 	test_tfb_stream_recv();
-	test_tfb_controller_create();
-	test_tfb_controller_assign();
+	test_tfb_hub_create();
+	test_tfb_hub_assign();
 	test_tfb_stream_seq_numbers();
 	test_tfb_sock_create();
 

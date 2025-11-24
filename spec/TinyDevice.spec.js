@@ -29,7 +29,7 @@ describe("tiny fieldbus device",()=>{
 	it("can send and recv",async ()=>{
 		let bus=new Bus();
 		let controller=new TinyController({port: bus.createPort()});
-		let controllerEv=new EventCapture(controller,["device"]);
+		let controllerEv=new EventCapture(controller,["connect"]);
 		let device=new TinyDevice({port: bus.createPort(), name: "hello"});
 		let deviceEv=new EventCapture(device,["connect","data"]);
 
@@ -37,7 +37,7 @@ describe("tiny fieldbus device",()=>{
 		jasmine.clock().tick(100);
 		jasmine.clock().tick(100);
 
-		expect(controllerEv.events.length).toEqual(1);
+		expect(controllerEv.getEventTypes()).toEqual(["connect"]);
 		let deviceEp=controllerEv.events[0].device;
 		let deviceEpEv=new EventCapture(deviceEp,["data"]);
 
@@ -59,7 +59,7 @@ describe("tiny fieldbus device",()=>{
 
 		//console.log(decodeFrameBytes(bus.byte_log));
 		//console.log(deviceEpEv.getEventTypes());
-		//console.log(deviceEv.getEventTypes());
+		//console.log(deviceEv.getEventTypes());*/
 		expect(deviceEv.getEventTypes()).toEqual(["connect","data","data"]);
 		expect(deviceEpEv.getEventTypes()).toEqual(["data","data","data"]);
 	});
@@ -104,7 +104,7 @@ describe("tiny fieldbus device",()=>{
 	it("can resend when controlled",async ()=>{
 		let bus=new Bus();
 		let controller=new TinyController({port: bus.createPort()});
-		let controllerEv=new EventCapture(controller,["device"]);
+		let controllerEv=new EventCapture(controller,["connect"]);
 		let device=new TinyDevice({port: bus.createPort(), name: "hello"});
 		//let deviceEv=new EventCapture(device,["connect","data"]);
 
@@ -172,7 +172,7 @@ describe("tiny fieldbus device",()=>{
 		let bus=new Bus();
 		let device=new TinyDevice({port: bus.createPort(), name: "hello"});
 		let controller=new TinyController({port: bus.createPort()});
-		let controllerEv=new EventCapture(controller,["device"]);
+		let controllerEv=new EventCapture(controller,["connect"]);
 
 		jasmine.clock().tick(1000);
 		let deviceEp=controllerEv.events[0].device;

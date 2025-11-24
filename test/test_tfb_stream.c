@@ -101,8 +101,10 @@ void test_tfb_stream_recv() {
 	tfb_stream_tick(stream);
 
 	assert(tfb_stream_available(stream)==7);
-	assert(tfb_stream_read_byte(stream)=='t');
-	assert(tfb_stream_read_byte(stream)=='e');
+	uint8_t buf[2];
+	tfb_stream_recv(stream,buf,2);
+	assert(buf[0]=='t');
+	assert(buf[1]=='e');
 	assert(tfb_stream_available(stream)==5);
 
 	//for (int i=0; i<framesniffer_get_num_frames(sniffer); i++)

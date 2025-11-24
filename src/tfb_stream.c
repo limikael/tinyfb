@@ -10,12 +10,13 @@
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
-void tfb_stream_data_func(tfb_stream_t *stream, void (*data_func)(tfb_stream_t *stream)) {
-	stream->data_func=data_func;
+void tfb_stream_trigger_event(tfb_stream_t *stream, int event) {
+	if (stream->event_func)
+		stream->event_func(stream,event);
 }
 
-void tfb_stream_status_func(tfb_stream_t *stream, void (*status_func)(tfb_stream_t *stream)) {
-	stream->status_func=status_func;
+void tfb_stream_event_func(tfb_stream_t *stream, void (*event_func)(tfb_stream_t *stream, int event)) {
+	stream->event_func=event_func;
 }
 
 bool tfb_stream_send_frame(tfb_stream_t *stream, tfb_frame_t *frame, int flags) {
@@ -47,8 +48,7 @@ void tfb_stream_reset(tfb_stream_t *stream) {
 tfb_stream_t *tfb_stream_create(tfb_physical_t *physical, char *name) {
 	tfb_stream_t *stream=tfb_malloc(sizeof(tfb_stream_t));
 
-	stream->data_func=NULL;
-	stream->status_func=NULL;
+	stream->event_func=NULL;
 	stream->controlled_id=0;
 	stream->name=tfb_strdup(name);
 	stream->link=tfb_link_create(physical);
@@ -58,11 +58,10 @@ tfb_stream_t *tfb_stream_create(tfb_physical_t *physical, char *name) {
 	return stream;
 }
 
-tfb_stream_t *tfb_stream_create_controlled(tfb_link_t *link, int id, char *name) {
+tfb_stream_t *tfb_stream_create_controlled(tfb_link_t *link, char *name, int id) {
 	tfb_stream_t *stream=tfb_malloc(sizeof(tfb_stream_t));
 
-	stream->data_func=NULL;
-	stream->status_func=NULL;
+	stream->event_func=NULL;
 	stream->name=tfb_strdup(name);
 	stream->link=link;
 	tfb_stream_reset(stream);
@@ -133,8 +132,8 @@ void tfb_stream_handle_payload_frame(tfb_stream_t *stream, tfb_frame_t *frame) {
 	tfb_stream_send_frame(stream,ackframe,TFB_LINK_URGENT);
 	tfb_frame_dispose(ackframe);
 
-	if (stream->data_func && tfb_stream_available(stream))
-		stream->data_func(stream);
+	if (tfb_stream_available(stream))
+		tfb_stream_trigger_event(stream,TFB_EVENT_DATA);
 }
 
 void tfb_stream_handle_ack_frame(tfb_stream_t *stream, tfb_frame_t *frame) {
@@ -177,8 +176,7 @@ void tfb_stream_handle_session_frame(tfb_stream_t *stream, tfb_frame_t *frame) {
 			tfb_frame_has_data(frame,TFB_RESET_TO) &&
 			tfb_frame_get_num(frame,TFB_RESET_TO)==stream->id) {
 		tfb_stream_reset(stream);
-		if (stream->status_func)
-			stream->status_func(stream);
+		tfb_stream_trigger_event(stream,TFB_EVENT_CLOSE);
 	}
 
 	// Session change, i.e. controller reset.
@@ -186,8 +184,7 @@ void tfb_stream_handle_session_frame(tfb_stream_t *stream, tfb_frame_t *frame) {
 			tfb_frame_has_data(frame,TFB_SESSION_ID) &&
 			tfb_frame_get_num(frame,TFB_SESSION_ID)!=stream->session_id) {
 		tfb_stream_reset(stream);
-		if (stream->status_func)
-			stream->status_func(stream);
+		tfb_stream_trigger_event(stream,TFB_EVENT_CLOSE);
 	}
 
 	// Assignment.
@@ -198,8 +195,7 @@ void tfb_stream_handle_session_frame(tfb_stream_t *stream, tfb_frame_t *frame) {
 		stream->id=tfb_frame_get_num(frame,TFB_TO);
 		stream->session_id=tfb_frame_get_num(frame,TFB_SESSION_ID);
 		stream->activity_deadline=tfb_time_future(stream->link->physical,TFB_CONNECTION_TIMEOUT);
-		if (stream->status_func)
-			stream->status_func(stream);
+		tfb_stream_trigger_event(stream,TFB_EVENT_CONNECT);
 	}
 
 	// Pong.
@@ -252,8 +248,7 @@ void tfb_stream_tick(tfb_stream_t *stream) {
 	if (tfb_time_expired(stream->link->physical,stream->resend_deadline)) {
 		if (stream->resend_level>=TFB_RETRIES) {
 			tfb_stream_reset(stream);
-			if (stream->status_func)
-				stream->status_func(stream);
+			tfb_stream_trigger_event(stream,TFB_EVENT_CLOSE);
 		}
 
 		else {
@@ -273,8 +268,7 @@ void tfb_stream_tick(tfb_stream_t *stream) {
 
 	if (tfb_time_expired(stream->link->physical,stream->activity_deadline)) {
 		tfb_stream_reset(stream);
-		if (stream->status_func)
-			stream->status_func(stream);
+		tfb_stream_trigger_event(stream,TFB_EVENT_CLOSE);
 	}
 }
 
@@ -309,7 +303,7 @@ size_t tfb_stream_available(tfb_stream_t *stream) {
 	return stream->rx_pending;
 }
 
-int tfb_stream_read_byte(tfb_stream_t *stream) {
+/*int tfb_stream_read_byte(tfb_stream_t *stream) {
 	if (!tfb_stream_available(stream))
 		return -1;
 
@@ -317,7 +311,7 @@ int tfb_stream_read_byte(tfb_stream_t *stream) {
 	tfb_stream_recv(stream,&byte,1);
 
 	return byte;
-}
+}*/
 
 tfb_time_t tfb_stream_get_deadline(tfb_stream_t *stream) {
 	tfb_time_t deadline=TFB_TIME_NEVER;
@@ -329,9 +323,9 @@ tfb_time_t tfb_stream_get_deadline(tfb_stream_t *stream) {
 	return deadline;
 }
 
-int tfb_stream_get_timeout(tfb_stream_t *stream) {
+/*int tfb_stream_get_timeout(tfb_stream_t *stream) {
 	return tfb_time_timeout(stream->link->physical,tfb_stream_get_deadline(stream));
-}
+}*/
 
 int tfb_stream_recv(tfb_stream_t *stream, uint8_t *data, size_t size) {
 	size_t recvsize=MIN(size,tfb_stream_available(stream));
