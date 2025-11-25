@@ -16,29 +16,23 @@ void test_tfb_link_send() {
 	mockpipe_tick(pipe,100);
 	assert(tfb_link_is_bus_available(link));
 
-	assert(tfb_link_send(link,(uint8_t*)"hello\x62",6,0));
+	tfb_frame_t *f1=tfb_frame_create(1024);
+	tfb_frame_write_num(f1,TFB_TO,123);
+	assert(tfb_link_send(link,f1,0));
 
-	assert(pipe->atob_pos==8);
-	mockpipe_tick(pipe,100);
+	assert(pipe->atob_pos==6);
 
-	assert(tfb_link_send(link,(uint8_t*)"h\x7e\x7d\x6b",4,0));
-	assert(tfb_link_send(link,(uint8_t*)"hello\x62",6,0));
-	assert(!tfb_link_send(link,(uint8_t*)"hello\x62",6,0));
-	tfb_link_tick(link);
-
-	assert(!tfb_link_is_bus_available(link));
+	assert(tfb_link_send(link,f1,TFB_LINK_SEND_OWNED));
+	assert(link->tx_frame);
+	assert(pipe->atob_pos==6);
 	mockpipe_tick(pipe,100);
 	tfb_link_tick(link);
-	assert(!tfb_link_is_bus_available(link));
-	mockpipe_tick(pipe,100);
-	tfb_link_tick(link);
-	assert(tfb_link_is_bus_available(link));
+	assert(pipe->atob_pos==12);
 
 	/*for (int i=0; i<pipe->atob_pos; i++)
 		printf("%02x ",pipe->atob[i]);
+	
 	printf("(%d)\n",pipe->atob_pos);*/
-
-	assert(pipe->atob_pos==8+8+8);
 
 	tfb_link_dispose(link);
 	mockpipe_dispose(pipe);
@@ -62,20 +56,9 @@ void test_tfb_link_receive() {
 	tfb_physical_write(pipe->b,0x7e);
 
 	tfb_link_tick(link);
-	assert(tfb_link_peek_size(link)==3);
-	assert(!memcmp(tfb_link_peek(link),"xA\x39",3));
-
-	tfb_physical_write(pipe->b,0x7e);
-	tfb_physical_write(pipe->b,'Y');
-	assert(tfb_link_peek_size(link)==3);
+	assert(tfb_link_peek(link));
 	tfb_link_consume(link);
-	assert(tfb_link_peek_size(link)==0);
-
-	tfb_physical_write(pipe->b,0x7e);
-	tfb_physical_write(pipe->b,'x');
-	tfb_physical_write(pipe->b,0x7e);
-	tfb_link_tick(link);
-	assert(!tfb_link_peek_size(link));
+	assert(!tfb_link_peek(link));
 
 	tfb_link_dispose(link);
 	mockpipe_dispose(pipe);

@@ -1,6 +1,5 @@
 #include "tfb_frame.h"
 #include "tfb_util.h"
-//#include "tfb.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -43,21 +42,18 @@ void tokenize_frame_buffer(uint8_t **buffer, uint8_t *key, uint8_t **data, size_
 	(*buffer)+=*size;
 }
 
+bool tfb_frame_is_valid(tfb_frame_t *frame) {
+	return !compute_xor_checksum(frame->buffer,frame->size);
+}
+
 tfb_frame_t *tfb_frame_create(size_t capacity) {
 	tfb_frame_t *frame=tfb_malloc(sizeof(tfb_frame_t));
 	frame->buffer=tfb_malloc(capacity);
 	frame->capacity=capacity;
 	frame->size=0;
-	frame->resend_count=0;
-	frame->deadline=TFB_TIME_NEVER;
-	frame->submission_number=0;
 
 	return frame;
 }
-
-/*void tfb_frame_update_resend_deadline(tfb_frame_t *frame) {
-	frame->resend_deadline=tfb_time_future(TFB_RESEND_BASE<<(frame->resend_count));
-}*/
 
 tfb_frame_t *tfb_frame_create_from_data(uint8_t *data, size_t size) {
 	tfb_frame_t *frame=tfb_frame_create(size);
@@ -85,6 +81,9 @@ uint8_t tfb_frame_get_buffer_at(tfb_frame_t *frame, size_t index) {
 }
 
 void tfb_frame_write_byte(tfb_frame_t *frame, uint8_t byte) {
+	if (frame->size>=frame->capacity)
+		return;
+
 	frame->buffer[frame->size++]=byte;
 }
 

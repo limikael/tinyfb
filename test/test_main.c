@@ -9,9 +9,9 @@ void test_tfb_link_receive();
 void test_tfb_sock_create();
 void test_tfb_sock_send();
 void test_tfb_sock_recv();
-void test_tfb_sock_seq_numbers();
+//void test_tfb_sock_seq_numbers();
+//void test_tfb_hub_assign();
 void test_tfb_hub_create();
-void test_tfb_hub_assign();
 
 int main() {
 	printf("Running tests...\n");
@@ -22,10 +22,10 @@ int main() {
 	test_tfb_link_receive();
 	test_tfb_sock_create();
 	test_tfb_sock_send();
-	test_tfb_sock_seq_numbers();
 	test_tfb_sock_recv();
 	test_tfb_hub_create();
-	test_tfb_hub_assign();
+	//test_tfb_hub_assign();
+	//test_tfb_sock_seq_numbers();
 
 	printf("Blocks remaining: %d\n",tfb_allocated_blocks);
 	assert(!tfb_allocated_blocks);

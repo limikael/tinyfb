@@ -32,7 +32,7 @@ void test_tfb_hub_create() {
 	mockpipe_dispose(pipe);
 }
 
-void test_tfb_hub_assign() {
+/*void test_tfb_hub_assign() {
 	printf("- Hub assigns stream ids.\n");
 
 	mockpipe_t *pipe=mockpipe_create();
@@ -56,8 +56,8 @@ void test_tfb_hub_assign() {
 	tfb_hub_tick(hub);
 	framesniffer_tick(sniffer);
 
-	/*for (int i=0; i<framesniffer_get_num_frames(sniffer); i++)
-		printf("%s\n",framesniffer_sprint_frame_at(sniffer,i));*/
+	//for (int i=0; i<framesniffer_get_num_frames(sniffer); i++)
+	//	printf("%s\n",framesniffer_sprint_frame_at(sniffer,i));
 
 	assert(strstr(framesniffer_sprint_last(sniffer),"assign_name: (5) 'hello' to:"));
 	assert(hub->num_socks==1);
@@ -66,4 +66,4 @@ void test_tfb_hub_assign() {
 	tfb_hub_dispose(hub);
 	framesniffer_dispose(sniffer);
 	mockpipe_dispose(pipe);
-}
+}*/

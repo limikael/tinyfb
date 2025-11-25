@@ -47,13 +47,6 @@ tfb_sock_t *tfb_hub_get_sock_by_id(tfb_hub_t *hub, int id) {
 	return NULL;
 }
 
-bool tfb_hub_send_frame(tfb_hub_t *hub, tfb_frame_t *frame, int flags) {
-	if (!tfb_frame_has_data(frame,TFB_CHECKSUM))
-		tfb_frame_write_checksum(frame);
-
-	return tfb_link_send(hub->link,tfb_frame_get_buffer(frame),tfb_frame_get_size(frame),flags);
-}
-
 int tfb_hub_get_available_sock_id(tfb_hub_t *hub) {
 	int max_id=0;
 
@@ -82,8 +75,7 @@ void tfb_hub_handle_frame(tfb_hub_t *hub, tfb_frame_t *frame) {
 		tfb_frame_write_data(assignframe,TFB_ASSIGN_NAME,(uint8_t*)name,strlen(name));
 		tfb_frame_write_num(assignframe,TFB_TO,sock->id);
 		tfb_frame_write_num(assignframe,TFB_SESSION_ID,hub->session_id);
-		tfb_hub_send_frame(hub,assignframe,0);
-		tfb_frame_dispose(assignframe);
+		tfb_link_send(hub->link,assignframe,TFB_LINK_SEND_OWNED);
 		tfb_free(name);
 	}
 
@@ -92,10 +84,9 @@ void tfb_hub_handle_frame(tfb_hub_t *hub, tfb_frame_t *frame) {
 		tfb_frame_t *resetframe=tfb_frame_create(256);
 		tfb_frame_write_num(resetframe,TFB_RESET_TO,tfb_frame_get_num(frame,TFB_FROM));
 		tfb_frame_write_num(resetframe,TFB_SESSION_ID,hub->session_id);
-		tfb_hub_send_frame(hub,resetframe,0);
-		tfb_frame_dispose(resetframe);
+		tfb_link_send(hub->link,resetframe,TFB_LINK_SEND_OWNED);
 
-		printf("unknown sock!!!\n");
+		//printf("unknown sock!!!\n");
 	}
 }
 
@@ -106,8 +97,7 @@ void tfb_hub_tick(tfb_hub_t *hub) {
 		//printf("announcement expired!!!\n");
 		tfb_frame_t *af=tfb_frame_create(32);
 		tfb_frame_write_num(af,TFB_SESSION_ID,hub->session_id);
-		tfb_hub_send_frame(hub,af,0);
-		tfb_frame_dispose(af);
+		tfb_link_send(hub->link,af,TFB_LINK_SEND_OWNED);
 		hub->announcement_deadline=tfb_time_future(hub->link->physical,TFB_ANNOUNCEMENT_INTERVAL);
 	}
 
@@ -125,12 +115,9 @@ void tfb_hub_tick(tfb_hub_t *hub) {
 
 	//printf("hub peek size: %zu\n",tfb_link_peek_size(hub->link));
 
-	if (tfb_link_peek_size(hub->link)) {
-		size_t framesize=tfb_link_peek_size(hub->link);
-		uint8_t *framedata=tfb_link_peek(hub->link);
-		tfb_frame_t *frame=tfb_frame_create_from_data(framedata,framesize);
+	if (tfb_link_peek(hub->link)) {
+		tfb_frame_t *frame=tfb_link_peek(hub->link);
 		tfb_hub_handle_frame(hub,frame);
-		tfb_frame_dispose(frame);
 		tfb_link_consume(hub->link);
 	}
 }

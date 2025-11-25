@@ -20,9 +20,6 @@ typedef struct tfb_frame tfb_frame_t;
 struct tfb_frame {
 	uint8_t *buffer;
 	size_t size, capacity;
-	int resend_count;
-	tfb_time_t deadline;
-	uint32_t submission_number;
 };
 
 tfb_frame_t *tfb_frame_create(size_t size);
@@ -44,3 +41,4 @@ void tfb_frame_write_num(tfb_frame_t *frame, uint8_t key, int num);
 void tfb_frame_write_checksum(tfb_frame_t *frame);
 char *tfb_frame_sprint(tfb_frame_t *frame, char *s);
 void tfb_frame_reset(tfb_frame_t *frame);
+bool tfb_frame_is_valid(tfb_frame_t *frame);

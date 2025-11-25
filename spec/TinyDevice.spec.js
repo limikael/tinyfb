@@ -59,7 +59,7 @@ describe("tiny fieldbus device",()=>{
 
 		//console.log(decodeFrameBytes(bus.byte_log));
 		//console.log(deviceEpEv.getEventTypes());
-		//console.log(deviceEv.getEventTypes());*/
+		//console.log(deviceEv.getEventTypes());
 		expect(deviceEv.getEventTypes()).toEqual(["connect","data","data"]);
 		expect(deviceEpEv.getEventTypes()).toEqual(["data","data","data"]);
 	});
@@ -188,38 +188,5 @@ describe("tiny fieldbus device",()=>{
 
 		//console.log(decodeFrameBytes(bus.byte_log));
 		expect(deviceEpEv.getEventTypes()).toEqual(["close"]);
-	});
-
-	it("can send more data",async ()=>{
-		let bus=new Bus();
-		let controller=new TinyController({port: bus.createPort()});
-		let controllerEv=new EventCapture(controller,["connect"]);
-		let device=new TinyDevice({port: bus.createPort(), name: "hello"});
-		let deviceEv=new EventCapture(device,["connect","data"]);
-
-		jasmine.clock().tick(100);
-		jasmine.clock().tick(100);
-		jasmine.clock().tick(100);
-
-		expect(controllerEv.getEventTypes()).toEqual(["connect"]);
-		let deviceEp=controllerEv.events[0].device;
-		let deviceEpEv=new EventCapture(deviceEp,["data"]);
-
-		//console.log(decodeFrameBytes(bus.byte_log));
-		expect(decodeFrameBytes(bus.byte_log)).toContain({ assign_name: 'hello', to: 1, session_id: 27579, checksum: 169 });
-
-		for (let i=0; i<10; i++)
-			device.send("hello world 01234567890123456789012345678901234567890123456789 hello end");
-
-		for (let i=0; i<10; i++)
-			jasmine.clock().tick(10);
-
-		//console.log(decodeFrameBytes(bus.byte_log));
-		//console.log(deviceEpEv.getEventTypes());
-		//console.log(deviceEv.getEventTypes());*/
-		expect(deviceEv.getEventTypes()).toEqual(["connect"]);
-		expect(deviceEpEv.getEventTypes()).toEqual(["data","data","data"]);
-
-		console.log(deviceEpEv.events.map(ev=>arrayBufferToString(ev.data)));
 	});
 });

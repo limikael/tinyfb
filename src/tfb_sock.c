@@ -19,30 +19,31 @@ void tfb_sock_event_func(tfb_sock_t *sock, void (*event_func)(tfb_sock_t *sock, 
 	sock->event_func=event_func;
 }
 
-bool tfb_sock_send_frame(tfb_sock_t *sock, tfb_frame_t *frame, int flags) {
-	if (!tfb_frame_has_data(frame,TFB_CHECKSUM))
-		tfb_frame_write_checksum(frame);
-
-	return tfb_link_send(sock->link,tfb_frame_get_buffer(frame),tfb_frame_get_size(frame),flags);
-}
-
 void tfb_sock_announce(tfb_sock_t *sock) {
 	tfb_frame_t *announceframe=tfb_frame_create(128);
 	tfb_frame_write_data(announceframe,TFB_ANNOUNCE_NAME,(uint8_t *)sock->name,strlen(sock->name));
-	tfb_sock_send_frame(sock,announceframe,0);
-	tfb_frame_dispose(announceframe);
+	tfb_link_send(sock->link,announceframe,TFB_LINK_SEND_OWNED);
 }
 
 void tfb_sock_reset(tfb_sock_t *sock) {
 	sock->id=0;
-	sock->rx_pending=0;
-	sock->rx_committed=0;
-	sock->tx_pending=0;
-	sock->tx_committed=0;
 	sock->resend_level=0;
 	sock->resend_deadline=TFB_TIME_NEVER;
 	sock->activity_deadline=TFB_TIME_NEVER;
 	sock->session_id=0;
+	sock->num_sent=0;
+	sock->num_received=0;
+	if (sock->data) {
+		tfb_frame_dispose(sock->data);
+		sock->data=NULL;
+	}
+
+	for (int i=0; i<sock->tx_queue_len; i++) {
+		tfb_link_unsend(sock->link,sock->tx_queue[i]);
+		tfb_frame_dispose(sock->tx_queue[i]);
+	}
+
+	sock->tx_queue_len=0;
 }
 
 tfb_sock_t *tfb_sock_create(tfb_physical_t *physical, char *name) {
@@ -53,6 +54,8 @@ tfb_sock_t *tfb_sock_create(tfb_physical_t *physical, char *name) {
 	sock->name=tfb_strdup(name);
 	sock->link=tfb_link_create(physical);
 	sock->accepted=true;
+	sock->tx_queue_len=0;
+	sock->data=NULL;
 	tfb_sock_reset(sock);
 	tfb_sock_announce(sock);
 
@@ -63,12 +66,14 @@ tfb_sock_t *tfb_sock_create_controlled(tfb_link_t *link, char *name, int id) {
 	tfb_sock_t *sock=tfb_malloc(sizeof(tfb_sock_t));
 
 	sock->event_func=NULL;
+	sock->controlled_id=id;
 	sock->name=tfb_strdup(name);
 	sock->link=link;
 	sock->accepted=false;
+	sock->tx_queue_len=0;
+	sock->data=NULL;
 	tfb_sock_reset(sock);
 	sock->id=id;
-	sock->controlled_id=id;
 	sock->activity_deadline=tfb_time_future(link->physical,TFB_CONNECTION_TIMEOUT);
 
 	return sock;
@@ -77,6 +82,14 @@ tfb_sock_t *tfb_sock_create_controlled(tfb_link_t *link, char *name, int id) {
 void tfb_sock_dispose(tfb_sock_t *sock) {
 	if (!sock->controlled_id)
 		tfb_link_dispose(sock->link);
+
+	if (sock->data)
+		tfb_frame_dispose(sock->data);
+
+	for (int i=0; i<sock->tx_queue_len; i++) {
+		tfb_link_unsend(sock->link,sock->tx_queue[i]);
+		tfb_frame_dispose(sock->tx_queue[i]);
+	}
 
 	tfb_free(sock->name);
 	tfb_free(sock);
@@ -112,58 +125,50 @@ void tfb_sock_handle_payload_frame(tfb_sock_t *sock, tfb_frame_t *frame) {
 	if (!filter)
 		return;
 
-	uint32_t sofar=sock->rx_committed+sock->rx_pending;
-	uint32_t inseq=tfb_frame_get_num(frame,TFB_SEQ);
-	if (inseq>sofar)
-		return;
+	if (tfb_frame_get_num(frame,TFB_SEQ)==sock->num_received &&
+			!tfb_sock_available(sock)) {
+		sock->data=tfb_frame_create_from_data(frame->buffer,frame->size);
+		sock->num_received++;
+	}
 
-	uint32_t offs=sofar-inseq;
-	if (offs>tfb_frame_get_data_size(frame,TFB_PAYLOAD))
-		return;
-
-	uint8_t *data=tfb_frame_get_data(frame,TFB_PAYLOAD);
-	uint32_t size=tfb_frame_get_data_size(frame,TFB_PAYLOAD)-offs;
-	uint32_t available=TFB_BUFSIZE-sock->rx_pending;
-	size=MIN(size,available);
-	memcpy(&sock->rx_buf[sock->rx_pending],&data[offs],size);
-	sock->rx_pending+=size;
-
-	tfb_frame_t *ackframe=tfb_frame_create(64);
-	tfb_sock_make_frame_ours(sock,ackframe);
-	tfb_frame_write_num(ackframe,TFB_ACK,sock->rx_committed+sock->rx_pending);
-	tfb_sock_send_frame(sock,ackframe,TFB_LINK_URGENT);
-	tfb_frame_dispose(ackframe);
+	if (tfb_frame_get_num(frame,TFB_SEQ)<sock->num_received) {
+		tfb_frame_t *ackframe=tfb_frame_create(64);
+		tfb_sock_make_frame_ours(sock,ackframe);
+		tfb_frame_write_num(ackframe,TFB_ACK,tfb_frame_get_num(frame,TFB_SEQ));
+		tfb_link_send(sock->link,ackframe,TFB_LINK_SEND_URGENT|TFB_LINK_SEND_OWNED);
+	}
 
 	if (tfb_sock_available(sock))
 		tfb_sock_trigger_event(sock,TFB_EVENT_DATA);
 }
 
+uint8_t tfb_sock_get_num_acked(tfb_sock_t *sock) {
+	return sock->num_sent-sock->tx_queue_len;
+}
+
 void tfb_sock_handle_ack_frame(tfb_sock_t *sock, tfb_frame_t *frame) {
 	bool filter=tfb_sock_is_frame_ours(sock,frame) &&
 		tfb_frame_has_data(frame,TFB_ACK) &&
-		tfb_frame_get_num(frame,TFB_ACK)>sock->tx_committed;
+		sock->tx_queue_len;
 
 	if (!filter)
 		return;
 
-	int acked=tfb_frame_get_num(frame,TFB_ACK)-sock->tx_committed;
-	if (acked<0) {
-		printf("got ack for bytes not sent!!!\n");
+	int ack=tfb_frame_get_num(frame,TFB_ACK);
+	int seq=tfb_frame_get_num(sock->tx_queue[0],TFB_SEQ);
+	if (ack!=seq)
 		return;
-	}
 
-	if (acked>sock->tx_pending)
-		acked=sock->tx_pending;
+	tfb_link_unsend(sock->link,sock->tx_queue[0]);
+	tfb_frame_dispose(sock->tx_queue[0]);
+	sock->tx_queue_len--;
+	memmove(&sock->tx_queue[0],&sock->tx_queue[1],sizeof(tfb_frame_t *)*sock->tx_queue_len);
 
-	//printf("pending: %d acked: %d\n",sock->tx_pending,acked);
-
-	memmove(sock->tx_buf,&sock->tx_buf[acked],sock->tx_pending-acked);
-	sock->tx_pending-=acked;
-	sock->tx_committed+=acked;
-	sock->resend_deadline=TFB_TIME_NEVER;
 	sock->resend_level=0;
+	sock->resend_deadline=TFB_TIME_NEVER;
 
-	if (sock->tx_pending) {
+	if (sock->tx_queue_len) {
+		tfb_link_send(sock->link,sock->tx_queue[0],0);
 		sock->resend_level=0;
 		sock->resend_deadline=tfb_time_future(sock->link->physical,TFB_RESEND_BASE<<sock->resend_level);
 	}
@@ -207,8 +212,7 @@ void tfb_sock_handle_session_frame(tfb_sock_t *sock, tfb_frame_t *frame) {
 		sock->activity_deadline=tfb_time_future(sock->link->physical,TFB_CONNECTION_TIMEOUT);
 		tfb_frame_t *pongframe=tfb_frame_create(32);
 		tfb_frame_write_num(pongframe,TFB_FROM,sock->id);
-		tfb_sock_send_frame(sock,pongframe,0);
-		tfb_frame_dispose(pongframe);
+		tfb_link_send(sock->link,pongframe,TFB_LINK_SEND_OWNED);
 	}
 
 	// Announce.
@@ -234,15 +238,14 @@ void tfb_sock_tick(tfb_sock_t *sock) {
 	if (!tfb_sock_is_controlled(sock))
 		tfb_link_tick(sock->link);
 
-	if (tfb_link_peek_size(sock->link)) {
-		size_t framesize=tfb_link_peek_size(sock->link);
-		uint8_t *framedata=tfb_link_peek(sock->link);
-		tfb_frame_t *frame=tfb_frame_create_from_data(framedata,framesize);
+	if (tfb_link_peek(sock->link)) {
+		//printf("have frame!!!\n");
+
+		tfb_frame_t *frame=tfb_link_peek(sock->link);
 		tfb_sock_handle_session_frame(sock,frame);
 		tfb_sock_handle_controlled_frame(sock,frame);
 		tfb_sock_handle_payload_frame(sock,frame);
 		tfb_sock_handle_ack_frame(sock,frame);
-		tfb_frame_dispose(frame);
 		if (!sock->controlled_id)
 			tfb_link_consume(sock->link);
 	}
@@ -254,15 +257,7 @@ void tfb_sock_tick(tfb_sock_t *sock) {
 		}
 
 		else {
-			size_t sendsize=MIN(sock->tx_pending,TFB_BUFSIZE-10);
-
-			tfb_frame_t *frame=tfb_frame_create(sendsize+64);
-			tfb_sock_make_frame_ours(sock,frame);
-			tfb_frame_write_num(frame,TFB_SEQ,sock->tx_committed);
-			tfb_frame_write_data(frame,TFB_PAYLOAD,sock->tx_buf,sendsize);
-			tfb_sock_send_frame(sock,frame,0);
-			tfb_frame_dispose(frame);
-
+			tfb_link_send(sock->link,sock->tx_queue[0],0);
 			sock->resend_level++;
 			sock->resend_deadline=tfb_time_future(sock->link->physical,TFB_RESEND_BASE<<sock->resend_level);
 		}
@@ -278,33 +273,22 @@ int tfb_sock_send(tfb_sock_t *sock, uint8_t *data, size_t size) {
 	if (!sock->id)
 		return -1;
 
-	size_t sendsize=MIN(size,TFB_BUFSIZE-sock->tx_pending);
-	sendsize=MIN(sendsize,TFB_BUFSIZE-10);
-	if (!sendsize)
-		return 0;
-
-	memcpy(&sock->tx_buf[sock->tx_pending],data,sendsize);
-	tfb_frame_t *frame=tfb_frame_create(sendsize+64);
+	tfb_frame_t *frame=tfb_frame_create(size+64);
 	tfb_sock_make_frame_ours(sock,frame);
-	tfb_frame_write_num(frame,TFB_SEQ,sock->tx_committed+sock->tx_pending);
-	tfb_frame_write_data(frame,TFB_PAYLOAD,data,sendsize);
-	bool sendres=tfb_sock_send_frame(sock,frame,0);
-	//printf("send res: %d\n",sendres);
-	tfb_frame_dispose(frame);
-	sock->tx_pending+=sendsize;
+	tfb_frame_write_num(frame,TFB_SEQ,sock->num_sent++);
+	tfb_frame_write_data(frame,TFB_PAYLOAD,data,size);
+	sock->tx_queue[sock->tx_queue_len++]=frame;
 
-	if (sock->resend_deadline==TFB_TIME_NEVER) {
+	//printf("wrote, len=%zu, sent=%zu acked=%zu\n",sock->tx_queue_len,sock->num_sent,sock->num_acked);
+	//printf("sent... queue len=%zu\n",sock->tx_queue_len);
+
+	if (sock->tx_queue_len==1) {
+		tfb_link_send(sock->link,sock->tx_queue[0],0);
 		sock->resend_level=0;
 		sock->resend_deadline=tfb_time_future(sock->link->physical,TFB_RESEND_BASE<<sock->resend_level);
 	}
 
-	//printf("**** sent: %d, pending: %d\n",sendsize,sock->tx_pending);
-
-	return sendsize;
-}
-
-size_t tfb_sock_available(tfb_sock_t *sock) {
-	return sock->rx_pending;
+	return size;
 }
 
 tfb_time_t tfb_sock_get_deadline(tfb_sock_t *sock) {
@@ -318,11 +302,17 @@ tfb_time_t tfb_sock_get_deadline(tfb_sock_t *sock) {
 }
 
 int tfb_sock_recv(tfb_sock_t *sock, uint8_t *data, size_t size) {
-	size_t recvsize=MIN(size,tfb_sock_available(sock));
-	memcpy(data,sock->rx_buf,recvsize);
-	memmove(&sock->rx_buf[0],&sock->rx_buf[recvsize],sock->rx_pending-recvsize);
-	sock->rx_pending-=recvsize;
-	sock->rx_committed+=recvsize;
+	if (!sock->data)
+		return 0;
+
+	size_t recvsize=0;
+	if (data) {
+		recvsize=MIN(size,tfb_frame_get_data_size(sock->data,TFB_PAYLOAD));
+		memcpy(data,tfb_frame_get_data(sock->data,TFB_PAYLOAD),recvsize);
+	}
+
+	tfb_frame_dispose(sock->data);
+	sock->data=NULL;
 
 	return recvsize;
 }
@@ -337,4 +327,11 @@ bool tfb_sock_is_controlled(tfb_sock_t *sock) {
 
 int tfb_sock_get_timeout(tfb_sock_t *sock) {
 	return tfb_time_timeout(sock->link->physical,tfb_sock_get_deadline(sock));
+}
+
+size_t tfb_sock_available(tfb_sock_t *sock) {
+	if (sock->data)
+		return tfb_frame_get_data_size(sock->data,TFB_PAYLOAD);
+
+	return 0;
 }

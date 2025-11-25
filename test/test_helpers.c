@@ -112,10 +112,9 @@ void framesniffer_dispose(framesniffer_t *sniffer) {
 void framesniffer_tick(framesniffer_t *sniffer) {
 	tfb_link_tick(sniffer->link);
 
-	if (tfb_link_peek_size(sniffer->link)) {
-		uint8_t *data=tfb_link_peek(sniffer->link);
-		size_t size=tfb_link_peek_size(sniffer->link);
-		sniffer->frames[sniffer->num_frames++]=tfb_frame_create_from_data(data,size);
+	if (tfb_link_peek(sniffer->link)) {
+		tfb_frame_t *frame=tfb_link_peek(sniffer->link);
+		sniffer->frames[sniffer->num_frames++]=tfb_frame_create_from_data(frame->buffer,frame->size);
 		tfb_link_consume(sniffer->link);
 	}
 }
@@ -123,10 +122,7 @@ void framesniffer_tick(framesniffer_t *sniffer) {
 void framesniffer_send_frame(framesniffer_t *sniffer, tfb_frame_t *frame) {
 	framesniffer_tick(sniffer);
 
-	if (!tfb_frame_has_data(frame,TFB_CHECKSUM))
-		tfb_frame_write_checksum(frame);
-
-	tfb_link_send(sniffer->link,tfb_frame_get_buffer(frame),tfb_frame_get_size(frame),TFB_LINK_URGENT);
+	tfb_link_send(sniffer->link,frame,TFB_LINK_SEND_URGENT|TFB_LINK_SEND_OWNED);
 
 	framesniffer_tick(sniffer);
 }
@@ -144,6 +140,9 @@ char *framesniffer_sprint_frame_at(framesniffer_t *sniffer, int n) {
 }
 
 char *framesniffer_sprint_last(framesniffer_t *sniffer) {
+	if (!framesniffer_get_num_frames(sniffer))
+		return "(empty)";
+
 	return framesniffer_sprint_frame_at(sniffer,framesniffer_get_num_frames(sniffer)-1);
 }
 

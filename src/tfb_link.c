@@ -1,6 +1,7 @@
 #include "tfb_link.h"
 #include "tfb_physical.h"
 #include "tfb_util.h"
+#include "tfb_frame.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -8,9 +9,10 @@ tfb_link_t *tfb_link_create(tfb_physical_t *physical) {
 	tfb_link_t *link=tfb_malloc(sizeof(tfb_link_t));
 
 	link->physical=physical;
-	link->rx_size=0;
+	link->rx_frame=tfb_frame_create(1024);
+	link->tx_frame=NULL;
 	link->rx_state=TFB_LINK_RX_INIT;
-	link->tx_size=0;
+	link->tx_frame_owned=false;
 
 	tfb_link_notify_bus_activity(link);
 
@@ -18,10 +20,14 @@ tfb_link_t *tfb_link_create(tfb_physical_t *physical) {
 }
 
 void tfb_link_dispose(tfb_link_t *link) {
+	if (link->tx_frame_owned)
+		tfb_frame_dispose(link->tx_frame);
+
+	tfb_frame_dispose(link->rx_frame);
 	tfb_free(link);
 }
 
-bool tfb_link_write_frame(tfb_link_t *link, uint8_t *data, size_t size) {
+bool tfb_link_write_data(tfb_link_t *link, uint8_t *data, size_t size) {
 	//printf(">! writing frame, size=%zu\n",size);
 
 	tfb_physical_write(link->physical,0x7e);
@@ -46,6 +52,13 @@ bool tfb_link_write_frame(tfb_link_t *link, uint8_t *data, size_t size) {
 	return true;
 }
 
+tfb_frame_t *tfb_link_peek(tfb_link_t *link) {
+	if (link->rx_state==TFB_LINK_RX_COMPLETE)
+		return link->rx_frame;
+
+	return NULL;
+}
+
 void tfb_link_handle_rx_byte(tfb_link_t *link, uint8_t byte) {
 	//printf("handle byte: %d pos: %d\n",byte,link->rx_pos);
 
@@ -62,15 +75,14 @@ void tfb_link_handle_rx_byte(tfb_link_t *link, uint8_t byte) {
 
 	switch (byte) {
 		case 0x7e:
-			if (link->rx_size &&
-					!compute_xor_checksum(link->rx_buf,link->rx_size)) {
+			if (tfb_frame_get_size(link->rx_frame) &&
+					tfb_frame_is_valid(link->rx_frame)) {
 				link->rx_state=TFB_LINK_RX_COMPLETE;
 				return;
 			}
 
 			link->rx_state=TFB_LINK_RX_RECEIVE;
-			link->rx_size=0;
-			//printf("seen 0x7e... pos=%d\n",link->rx_pos);
+			tfb_frame_reset(link->rx_frame);
 			break;
 
 		case 0x7d:
@@ -78,41 +90,35 @@ void tfb_link_handle_rx_byte(tfb_link_t *link, uint8_t byte) {
 			break;
 
 		default:
-			if (link->rx_size<TFB_BUFSIZE) {
-				if (link->rx_state==TFB_LINK_RX_ESCAPE)
-					link->rx_buf[link->rx_size++]=byte^0x20;
+			if (link->rx_state==TFB_LINK_RX_ESCAPE)
+				tfb_frame_write_byte(link->rx_frame,byte^0x20);
 
-				else
-					link->rx_buf[link->rx_size++]=byte;
-			}
+			else
+				tfb_frame_write_byte(link->rx_frame,byte);
 
 			link->rx_state=TFB_LINK_RX_RECEIVE;
 			break;
 	}
 }
 
+void tfb_link_drain(tfb_link_t *link) {
+	if (!link->tx_frame || !tfb_link_is_bus_available(link))
+		return;
+
+	tfb_link_write_data(link,link->tx_frame->buffer,link->tx_frame->size);
+	if (link->tx_frame_owned)
+		tfb_frame_dispose(link->tx_frame);
+
+	link->tx_frame=NULL;
+	link->tx_frame_owned=false;
+}
+
 void tfb_link_tick(tfb_link_t *link) {
 	int available=tfb_physical_available(link->physical);
-	//printf("av before: %d\n",available);
-
 	for (int i=0; i<available; i++) 
 		tfb_link_handle_rx_byte(link,tfb_physical_read(link->physical));
 
-	available=tfb_physical_available(link->physical);
-	//printf("av after: %d\n",available);
-
-	//printf("** tick: %p available=%d qlen=%d now=%d deadline=%d\n",link,tfb_link_is_bus_available(link),link->tx_queue_len,tfb_time_now(),link->bus_available_deadline);
-
-	//printf("link tick, tx_size=%d available=%d\n",link->tx_size,tfb_link_is_bus_available(link));
-
-	if (tfb_link_is_bus_available(link) &&
-			link->tx_size) {
-		tfb_link_write_frame(link,link->tx_buf,link->tx_size);
-		link->tx_size=0;
-	}
-
-	//printf("link tick done!!\n");
-	//printf("link tick, available after: %zu\n",link->physical->available(link->physical));
+	tfb_link_drain(link);
 }
 
 void tfb_link_notify_bus_activity(tfb_link_t *link) {
@@ -124,51 +130,49 @@ bool tfb_link_is_bus_available(tfb_link_t *link) {
 	return tfb_time_expired(link->physical,link->bus_available_deadline);
 }
 
-bool tfb_link_send(tfb_link_t *link, uint8_t *data, size_t size, int flags) {
-	//printf(">> sending link bytes: %zu... queue size: %d\n",size,link->tx_queue_len);
+bool tfb_link_send(tfb_link_t *link, tfb_frame_t *frame, int flags) {
+	if (!tfb_frame_has_data(frame,TFB_CHECKSUM))
+		tfb_frame_write_checksum(frame);
 
-	if (compute_xor_checksum(data,size))
+	if (flags&TFB_LINK_SEND_URGENT) {
+		tfb_link_write_data(link,frame->buffer,frame->size);
+		if (flags&TFB_LINK_SEND_OWNED)
+			tfb_frame_dispose(frame);
+
+		return true;
+	}
+
+	if (link->tx_frame)
 		return false;
 
-	if (flags&TFB_LINK_URGENT)
-		return tfb_link_write_frame(link,data,size);
+	link->tx_frame=frame;
+	link->tx_frame_owned=(flags&TFB_LINK_SEND_OWNED);
 
-	if (link->tx_size)
-		return false;
-
-	if (tfb_link_is_bus_available(link))
-		return tfb_link_write_frame(link,data,size);
-
-	memcpy(link->tx_buf,data,size);
-	link->tx_size=size;
-
+	tfb_link_drain(link);
 	return true;
 }
 
+void tfb_link_unsend(tfb_link_t *link, tfb_frame_t *frame) {
+	if (link->tx_frame!=frame)
+		return;
+
+	if (link->tx_frame_owned)
+		tfb_frame_dispose(frame);
+
+	link->tx_frame=NULL;
+	link->tx_frame_owned=false;
+}
+
 tfb_time_t tfb_link_get_deadline(tfb_link_t *link) {
-	if (!link->tx_size)
+	if (!link->tx_frame)
 		return TFB_TIME_NEVER;
 
 	return link->bus_available_deadline;
 }
 
-size_t tfb_link_peek_size(tfb_link_t *link) {
-	if (link->rx_state==TFB_LINK_RX_COMPLETE)
-		return link->rx_size;
-
-	return 0;
-}
-
-uint8_t *tfb_link_peek(tfb_link_t *link) {
-	if (link->rx_state==TFB_LINK_RX_COMPLETE)
-		return link->rx_buf;
-
-	return NULL;
-}
-
 void tfb_link_consume(tfb_link_t *link) {
 	if (link->rx_state==TFB_LINK_RX_COMPLETE) {
 		link->rx_state=TFB_LINK_RX_INIT;
-		link->rx_size=0;
+		tfb_frame_reset(link->rx_frame);
 	}
 }
