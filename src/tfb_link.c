@@ -16,6 +16,8 @@ tfb_link_t *tfb_link_create(tfb_physical_t *physical) {
 
 	tfb_link_notify_bus_activity(link);
 
+	tfb_physical_write_enable(link->physical,false);
+
 	return link;
 }
 
@@ -28,8 +30,7 @@ void tfb_link_dispose(tfb_link_t *link) {
 }
 
 bool tfb_link_write_data(tfb_link_t *link, uint8_t *data, size_t size) {
-	//printf(">! writing frame, size=%zu\n",size);
-
+	tfb_physical_write_enable(link->physical,true);
 	tfb_physical_write(link->physical,0x7e);
 
 	for (int i=0; i<size; i++) {
@@ -46,6 +47,7 @@ bool tfb_link_write_data(tfb_link_t *link, uint8_t *data, size_t size) {
 	}
 
 	tfb_physical_write(link->physical,0x7e);
+	tfb_physical_write_enable(link->physical,false);
 
 	tfb_link_notify_bus_activity(link);
 

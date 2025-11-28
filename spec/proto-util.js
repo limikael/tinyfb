@@ -1,3 +1,5 @@
+import {SyncEventTarget, PropEvent} from "../lib/js-util.js";
+
 let frameTypes=[
 	{key: "checksum", num: 1,},
 	{key: "from", num: 2,},
@@ -49,7 +51,9 @@ export function decodeFrame(bytes) {
 			case 3: size=4; break;
 			case 5: size=bytes[index++]; break;
 			case 6: size=bytes[index++]*256+bytes[index++]; break;
-			default: throw new Error("unknown size: "+z);
+			default:
+				console.log("Warning, unknown size: "+z+" bytes="+bytes.length);
+				return {};
 		}
 
 		let data=bytes.slice(index,index+size);
@@ -78,7 +82,18 @@ export function decodeFrame(bytes) {
 }
 
 export function decodeFrameBytes(bytes) {
-	return splitFrameBytes(bytes).map(f=>decodeFrame(f));
+	function computeCheck(frameBytes) {
+		let check=0;
+		for (let byte of frameBytes)
+			check=(check^byte);
+
+		/*if (check)
+			console.log("***** bad check: "+check);*/
+
+		return check;
+	}
+
+	return splitFrameBytes(bytes).filter(b=>!computeCheck(b)).map(f=>decodeFrame(f));
 }
 
 function encodeValue(value) {
@@ -165,4 +180,28 @@ export function encodeFrameBytes(bytes) {
 
 	res.push(0x7e);
 	return new Uint8Array(res);
+}
+
+export class FrameLogger extends SyncEventTarget {
+	constructor() {
+		super();
+		this.buffer=[];
+	}
+
+	write(byte) {
+		if (byte==0x7e) {
+			if (this.buffer.length && this.seenDelimiter) {
+				let frames=decodeFrameBytes(this.buffer);
+				for (let frame of frames)
+					this.dispatchEvent(new PropEvent("frame",{frame}));
+			}
+
+			this.buffer=[];
+			this.seenDelimiter=true;
+		}
+
+		else {
+			this.buffer.push(byte);
+		}
+	}
 }

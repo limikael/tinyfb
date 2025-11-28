@@ -24,7 +24,12 @@ export default class Bus extends EventEmitter {
 			},0);
 		}
 
+		port.flush=cb=>cb();
+		port.read=()=>null;
+
 		this.ports.push(port);
+
+		setTimeout(()=>port.emit("open"),0);
 
 		return port;
 	}

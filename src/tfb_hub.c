@@ -61,13 +61,13 @@ void tfb_hub_handle_frame(tfb_hub_t *hub, tfb_frame_t *frame) {
 	if (tfb_frame_has_data(frame,TFB_ANNOUNCE_NAME)) {
 		char *name=tfb_frame_get_strdup(frame,TFB_ANNOUNCE_NAME);
 		tfb_sock_t *sock=tfb_hub_get_sock_by_name(hub,name);
+		bool trigger_connect=false;
 		if (!sock) {
 			int id=tfb_hub_get_available_sock_id(hub);
 			//printf("creating sock id: %d\n",id);
 			sock=tfb_sock_create_controlled(hub->link,name,id);
 			hub->socks[hub->num_socks++]=sock;
-			if (hub->event_func)
-				hub->event_func(hub,TFB_EVENT_CONNECT);
+			trigger_connect=true;
 		}
 
 		//printf("sending assign...\n");
@@ -77,6 +77,9 @@ void tfb_hub_handle_frame(tfb_hub_t *hub, tfb_frame_t *frame) {
 		tfb_frame_write_num(assignframe,TFB_SESSION_ID,hub->session_id);
 		tfb_link_send(hub->link,assignframe,TFB_LINK_SEND_OWNED);
 		tfb_free(name);
+
+		if (trigger_connect && hub->event_func)
+			hub->event_func(hub,TFB_EVENT_CONNECT);
 	}
 
 	if (tfb_frame_has_data(frame,TFB_FROM) &&
@@ -94,10 +97,10 @@ void tfb_hub_tick(tfb_hub_t *hub) {
 	tfb_link_tick(hub->link);
 
 	if (tfb_time_expired(hub->link->physical,hub->announcement_deadline)) {
-		//printf("announcement expired!!!\n");
 		tfb_frame_t *af=tfb_frame_create(32);
 		tfb_frame_write_num(af,TFB_SESSION_ID,hub->session_id);
-		tfb_link_send(hub->link,af,TFB_LINK_SEND_OWNED);
+		bool res=tfb_link_send(hub->link,af,TFB_LINK_SEND_OWNED);
+		//printf("announcement send: %d\n",res);
 		hub->announcement_deadline=tfb_time_future(hub->link->physical,TFB_ANNOUNCEMENT_INTERVAL);
 	}
 

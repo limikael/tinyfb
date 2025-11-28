@@ -10,6 +10,7 @@ tfb_physical_t *tfb_physical_create() {
 	physical->read=NULL;
 	physical->available=NULL;
 	physical->millis=NULL;
+	physical->write_enable=NULL;
 
 	return physical;
 }
@@ -45,4 +46,9 @@ int tfb_physical_read(tfb_physical_t *physical) {
 
 uint32_t tfb_physical_millis(tfb_physical_t *physical) {
 	return physical->millis(physical);
+}
+
+void tfb_physical_write_enable(tfb_physical_t *physical, bool enable) {
+	if (physical->write_enable)
+		physical->write_enable(physical, enable);
 }

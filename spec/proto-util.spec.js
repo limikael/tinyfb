@@ -1,4 +1,5 @@
-import {splitFrameBytes, decodeFrame, encodeFrame, encodeFrameBytes, decodeFrameBytes} from "./proto-util.js";
+import {splitFrameBytes, decodeFrame, encodeFrame, encodeFrameBytes, decodeFrameBytes, FrameLogger} from "./proto-util.js";
+import {EventCapture} from "../lib/js-util.js";
 
 describe("proto-util",()=>{
 	/*it("can split frames",()=>{
@@ -30,5 +31,18 @@ describe("proto-util",()=>{
 		let res=decodeFrameBytes(frameBytes);
 		//console.log(res);
 		expect(res).toEqual([ { to: 1, ack: 123, announce_name: 'hello', checksum: 1 } ]);
+	});
+
+	it("can decode a stream",()=>{
+		let logger=new FrameLogger();
+		let loggerEv=new EventCapture(logger,["frame"]);
+		let frameBytes=encodeFrameBytes(encodeFrame({to: 123, ack: 456}));
+		for (let byte of frameBytes)
+			logger.write(byte);
+
+		let loggedFrames=loggerEv.events.map(ev=>ev.frame);
+		expect(loggedFrames).toEqual([
+			{ to: 123, ack: 456, checksum: 144 }
+		]);
 	});
 });

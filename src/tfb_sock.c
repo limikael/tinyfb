@@ -49,6 +49,7 @@ void tfb_sock_reset(tfb_sock_t *sock) {
 tfb_sock_t *tfb_sock_create(tfb_physical_t *physical, char *name) {
 	tfb_sock_t *sock=tfb_malloc(sizeof(tfb_sock_t));
 
+	sock->tag=NULL;
 	sock->event_func=NULL;
 	sock->controlled_id=0;
 	sock->name=tfb_strdup(name);
@@ -65,6 +66,7 @@ tfb_sock_t *tfb_sock_create(tfb_physical_t *physical, char *name) {
 tfb_sock_t *tfb_sock_create_controlled(tfb_link_t *link, char *name, int id) {
 	tfb_sock_t *sock=tfb_malloc(sizeof(tfb_sock_t));
 
+	sock->tag=NULL;
 	sock->event_func=NULL;
 	sock->controlled_id=id;
 	sock->name=tfb_strdup(name);
@@ -219,6 +221,7 @@ void tfb_sock_handle_session_frame(tfb_sock_t *sock, tfb_frame_t *frame) {
 	if (!tfb_sock_is_connected(sock) &&
 			tfb_frame_has_data(frame,TFB_SESSION_ID) &&
 			!tfb_frame_has_data(frame,TFB_ASSIGN_NAME)) {
+		//delay(100);
 		tfb_sock_announce(sock);
 	}
 }
@@ -271,6 +274,9 @@ void tfb_sock_tick(tfb_sock_t *sock) {
 
 int tfb_sock_send(tfb_sock_t *sock, uint8_t *data, size_t size) {
 	if (!sock->id)
+		return -1;
+
+	if (sock->tx_queue_len>=TFB_SOCK_QUEUE_SIZE)
 		return -1;
 
 	tfb_frame_t *frame=tfb_frame_create(size+64);
@@ -334,4 +340,12 @@ size_t tfb_sock_available(tfb_sock_t *sock) {
 		return tfb_frame_get_data_size(sock->data,TFB_PAYLOAD);
 
 	return 0;
+}
+
+bool tfb_sock_is_send_available(tfb_sock_t *sock) {
+	return (sock->tx_queue_len<TFB_SOCK_QUEUE_SIZE);
+}
+
+bool tfb_sock_is_flushed(tfb_sock_t *sock) {
+	return (sock->tx_queue_len==0);
 }
