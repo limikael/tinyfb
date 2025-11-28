@@ -110,8 +110,8 @@ void test_tfb_sock_recv() {
 	mockpipe_dispose(pipe);
 }
 
-/*void test_tfb_sock_seq_numbers() {
-	printf("- sock is flexible about seq numbers.\n");
+void test_tfb_sock_resend() {
+	printf("- Sock resends properly.\n");
 
 	mockpipe_t *pipe=mockpipe_create();
 	framesniffer_t *sniffer=framesniffer_create(pipe->b);
@@ -119,34 +119,20 @@ void test_tfb_sock_recv() {
 	tfb_frame_t *frame=tfb_frame_create(1024);
 	sock->id=123;
 
-	mockpipe_tick(pipe,100);
-	tfb_sock_tick(sock);
-	framesniffer_tick(sniffer);
+	//assert(sock->resend_deadline==TFB_TIME_NEVER);
+	tfb_sock_send(sock,(uint8_t *)"hello",5);
+	uint32_t sendnum=tfb_link_get_num_sent(sock->link);
+	assert(sendnum==1);
+	assert(!tfb_link_is_transmitted(sock->link,sendnum));
+	assert(sock->resend_deadline==TFB_TIME_NEVER);
 
-	tfb_frame_reset(frame);
-	tfb_frame_write_num(frame,TFB_TO,123);
-	tfb_frame_write_num(frame,TFB_SEQ,0);
-	tfb_frame_write_data(frame,TFB_PAYLOAD,(uint8_t*)"testing",7);
-	framesniffer_send_frame(sniffer,frame);
-
-	mockpipe_tick(pipe,100);
+	mockpipe_tick(pipe,4);
 	tfb_sock_tick(sock);
-	framesniffer_tick(sniffer);
-	assert(tfb_sock_available(sock)==7);
-
-	tfb_frame_reset(frame);
-	tfb_frame_write_num(frame,TFB_TO,123);
-	tfb_frame_write_num(frame,TFB_SEQ,6);
-	tfb_frame_write_data(frame,TFB_PAYLOAD,(uint8_t*)"gtest",5);
-	framesniffer_send_frame(sniffer,frame);
-	mockpipe_tick(pipe,100);
-	tfb_sock_tick(sock);
-	framesniffer_tick(sniffer);
-	//printf("avail: %zu\n",tfb_sock_available(sock));
-	assert(tfb_sock_available(sock)==11);
+	assert(tfb_link_is_transmitted(sock->link,sendnum));
+	assert(sock->resend_deadline!=TFB_TIME_NEVER);
 
 	tfb_frame_dispose(frame);
 	tfb_sock_dispose(sock);
 	framesniffer_dispose(sniffer);
 	mockpipe_dispose(pipe);
-}*/
+}

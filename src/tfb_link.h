@@ -28,6 +28,7 @@ struct tfb_link {
 	tfb_link_rx_state_t rx_state;
 	tfb_time_t bus_available_deadline;
 	bool tx_frame_owned;
+	uint32_t num_sent;
 };
 
 tfb_link_t *tfb_link_create(tfb_physical_t *tfb_physical);
@@ -40,3 +41,6 @@ bool tfb_link_is_bus_available(tfb_link_t *link);
 tfb_frame_t *tfb_link_peek(tfb_link_t *link);
 void tfb_link_consume(tfb_link_t *link);
 tfb_time_t tfb_link_get_deadline(tfb_link_t *link);
+uint32_t tfb_link_get_num_sent(tfb_link_t *link);
+uint32_t tfb_link_get_num_transmitted(tfb_link_t *link);
+bool tfb_link_is_transmitted(tfb_link_t *link, uint32_t sendnum);

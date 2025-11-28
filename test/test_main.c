@@ -8,6 +8,7 @@ void test_tfb_link_send();
 void test_tfb_link_receive();
 void test_tfb_sock_create();
 void test_tfb_sock_send();
+void test_tfb_sock_resend();
 void test_tfb_sock_recv();
 //void test_tfb_sock_seq_numbers();
 //void test_tfb_hub_assign();
@@ -23,6 +24,7 @@ int main() {
 	test_tfb_sock_create();
 	test_tfb_sock_send();
 	test_tfb_sock_recv();
+	test_tfb_sock_resend();
 	test_tfb_hub_create();
 	//test_tfb_hub_assign();
 	//test_tfb_sock_seq_numbers();

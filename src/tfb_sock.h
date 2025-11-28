@@ -9,7 +9,7 @@ extern "C" {
 
 #define TFB_CONNECTION_TIMEOUT 5000
 
-#define TFB_RESEND_BASE 10
+#define TFB_RESEND_BASE 100
 #define TFB_RETRIES 8
 
 #define TFB_EVENT_CONNECT 1
@@ -23,7 +23,7 @@ typedef struct tfb_sock tfb_sock_t;
 struct tfb_sock {
 	char *name;
 	int id,controlled_id;
-	int resend_level;
+	int resend_level,resend_sendnum;
 	tfb_time_t activity_deadline,resend_deadline;
 	tfb_link_t *link;
 	void (*event_func)(tfb_sock_t *sock, int event);

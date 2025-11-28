@@ -28,6 +28,7 @@ void tfb_sock_announce(tfb_sock_t *sock) {
 void tfb_sock_reset(tfb_sock_t *sock) {
 	sock->id=0;
 	sock->resend_level=0;
+	sock->resend_sendnum=0;
 	sock->resend_deadline=TFB_TIME_NEVER;
 	sock->activity_deadline=TFB_TIME_NEVER;
 	sock->session_id=0;
@@ -171,8 +172,10 @@ void tfb_sock_handle_ack_frame(tfb_sock_t *sock, tfb_frame_t *frame) {
 
 	if (sock->tx_queue_len) {
 		tfb_link_send(sock->link,sock->tx_queue[0],0);
+		sock->resend_sendnum=tfb_link_get_num_sent(sock->link);
 		sock->resend_level=0;
-		sock->resend_deadline=tfb_time_future(sock->link->physical,TFB_RESEND_BASE<<sock->resend_level);
+		sock->resend_deadline=TFB_TIME_NEVER;
+		//sock->resend_deadline=tfb_time_future(sock->link->physical,TFB_RESEND_BASE<<sock->resend_level);
 	}
 }
 
@@ -253,6 +256,11 @@ void tfb_sock_tick(tfb_sock_t *sock) {
 			tfb_link_consume(sock->link);
 	}
 
+	if (sock->tx_queue_len &&
+			sock->resend_deadline==TFB_TIME_NEVER &&
+			tfb_link_is_transmitted(sock->link,sock->resend_sendnum))
+		sock->resend_deadline=tfb_time_future(sock->link->physical,TFB_RESEND_BASE<<sock->resend_level);
+
 	if (tfb_time_expired(sock->link->physical,sock->resend_deadline)) {
 		if (sock->resend_level>=TFB_RETRIES) {
 			tfb_sock_reset(sock);
@@ -261,8 +269,10 @@ void tfb_sock_tick(tfb_sock_t *sock) {
 
 		else {
 			tfb_link_send(sock->link,sock->tx_queue[0],0);
+			sock->resend_sendnum=tfb_link_get_num_sent(sock->link);
 			sock->resend_level++;
-			sock->resend_deadline=tfb_time_future(sock->link->physical,TFB_RESEND_BASE<<sock->resend_level);
+			sock->resend_deadline=TFB_TIME_NEVER;
+			//sock->resend_deadline=tfb_time_future(sock->link->physical,TFB_RESEND_BASE<<sock->resend_level);
 		}
 	}
 
@@ -290,8 +300,10 @@ int tfb_sock_send(tfb_sock_t *sock, uint8_t *data, size_t size) {
 
 	if (sock->tx_queue_len==1) {
 		tfb_link_send(sock->link,sock->tx_queue[0],0);
+		sock->resend_sendnum=tfb_link_get_num_sent(sock->link);
 		sock->resend_level=0;
-		sock->resend_deadline=tfb_time_future(sock->link->physical,TFB_RESEND_BASE<<sock->resend_level);
+		sock->resend_deadline=TFB_TIME_NEVER;
+//		sock->resend_deadline=tfb_time_future(sock->link->physical,TFB_RESEND_BASE<<sock->resend_level);
 	}
 
 	return size;

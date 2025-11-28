@@ -13,6 +13,7 @@ tfb_link_t *tfb_link_create(tfb_physical_t *physical) {
 	link->tx_frame=NULL;
 	link->rx_state=TFB_LINK_RX_INIT;
 	link->tx_frame_owned=false;
+	link->num_sent=0;
 
 	tfb_link_notify_bus_activity(link);
 
@@ -147,6 +148,7 @@ bool tfb_link_send(tfb_link_t *link, tfb_frame_t *frame, int flags) {
 	if (link->tx_frame)
 		return false;
 
+	link->num_sent++;
 	link->tx_frame=frame;
 	link->tx_frame_owned=(flags&TFB_LINK_SEND_OWNED);
 
@@ -177,4 +179,19 @@ void tfb_link_consume(tfb_link_t *link) {
 		link->rx_state=TFB_LINK_RX_INIT;
 		tfb_frame_reset(link->rx_frame);
 	}
+}
+
+uint32_t tfb_link_get_num_sent(tfb_link_t *link) {
+	return link->num_sent;
+}
+
+uint32_t tfb_link_get_num_transmitted(tfb_link_t *link) {
+	if (link->tx_frame)
+		return link->num_sent-1;
+
+	return link->num_sent;
+}
+
+bool tfb_link_is_transmitted(tfb_link_t *link, uint32_t sendnum) {
+	return (int32_t)(tfb_link_get_num_transmitted(link)-sendnum)>=0;
 }
