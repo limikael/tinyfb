@@ -30,3 +30,4 @@ tfb_time_t tfb_hub_get_deadline(tfb_hub_t *hub);
 int tfb_hub_get_timeout(tfb_hub_t *hub);
 void tfb_hub_event_func(tfb_hub_t *hub, void (*event_func)(tfb_hub_t *hub, int event));
 tfb_sock_t *tfb_hub_accept(tfb_hub_t *hub);
+void tfb_hub_set_link_busy(tfb_hub_t *hub, bool busy);

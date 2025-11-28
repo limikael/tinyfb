@@ -1,5 +1,6 @@
 import PhysicalPort from "../lib/PhysicalPort.js";
 import Bus from "./Bus.js";
+import {EventCapture} from "../lib/js-util.js";
 
 describe("physical port",()=>{
     beforeEach(function() {
@@ -25,5 +26,26 @@ describe("physical port",()=>{
 
 		p1.close();
 		p2.close();
+	});
+
+});
+
+describe("physical port busy",()=>{
+	it("has a busy state",async ()=>{
+		let bus=new Bus();
+		let port=new PhysicalPort({port: bus.createPort()});
+		let portEvents=new EventCapture(port,["busyStateChange"]);
+
+		port.addEventListener("busyStateChange",()=>{
+			//console.log("busy: "+port.isBusy());
+		});
+
+		for (let i=0; i<10; i++)
+			port.write(123);
+
+		port.close();
+
+		await new Promise(r=>setTimeout(r,100));
+		expect(portEvents.events.map(ev=>ev.type)).toEqual(["busyStateChange","busyStateChange"]);
 	});
 });

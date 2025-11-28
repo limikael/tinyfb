@@ -24,6 +24,7 @@ export default class Bus extends EventEmitter {
 			},0);
 		}
 
+		port.drain=cb=>setTimeout(cb,3);
 		port.flush=cb=>cb();
 		port.read=()=>null;
 

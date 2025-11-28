@@ -14,12 +14,18 @@ tfb_link_t *tfb_link_create(tfb_physical_t *physical) {
 	link->rx_state=TFB_LINK_RX_INIT;
 	link->tx_frame_owned=false;
 	link->num_sent=0;
+	link->busy=false;
 
 	tfb_link_notify_bus_activity(link);
 
 	tfb_physical_write_enable(link->physical,false);
 
 	return link;
+}
+
+void tfb_link_set_busy(tfb_link_t *link, bool busy) {
+	link->busy=busy;
+	tfb_link_notify_bus_activity(link);
 }
 
 void tfb_link_dispose(tfb_link_t *link) {
@@ -130,6 +136,9 @@ void tfb_link_notify_bus_activity(tfb_link_t *link) {
 }
 
 bool tfb_link_is_bus_available(tfb_link_t *link) {
+	if (link->busy)
+		return false;
+
 	return tfb_time_expired(link->physical,link->bus_available_deadline);
 }
 
@@ -168,7 +177,7 @@ void tfb_link_unsend(tfb_link_t *link, tfb_frame_t *frame) {
 }
 
 tfb_time_t tfb_link_get_deadline(tfb_link_t *link) {
-	if (!link->tx_frame)
+	if (!link->tx_frame || link->busy)
 		return TFB_TIME_NEVER;
 
 	return link->bus_available_deadline;

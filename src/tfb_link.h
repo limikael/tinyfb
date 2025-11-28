@@ -27,6 +27,7 @@ struct tfb_link {
 	tfb_frame_t *tx_frame;
 	tfb_link_rx_state_t rx_state;
 	tfb_time_t bus_available_deadline;
+	bool busy;
 	bool tx_frame_owned;
 	uint32_t num_sent;
 };
@@ -44,3 +45,4 @@ tfb_time_t tfb_link_get_deadline(tfb_link_t *link);
 uint32_t tfb_link_get_num_sent(tfb_link_t *link);
 uint32_t tfb_link_get_num_transmitted(tfb_link_t *link);
 bool tfb_link_is_transmitted(tfb_link_t *link, uint32_t sendnum);
+void tfb_link_set_busy(tfb_link_t *link, bool busy);

@@ -151,3 +151,7 @@ tfb_sock_t *tfb_hub_accept(tfb_hub_t *hub) {
 
 	return NULL;
 }
+
+void tfb_hub_set_link_busy(tfb_hub_t *hub, bool busy) {
+	tfb_link_set_busy(hub->link,busy);
+}

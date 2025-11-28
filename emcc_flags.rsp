@@ -22,4 +22,5 @@ _tfb_hub_create,\
 _tfb_hub_tick,\
 _tfb_hub_get_timeout,\
 _tfb_hub_event_func,\
-_tfb_hub_accept
+_tfb_hub_accept,\
+_tfb_hub_set_link_busy
