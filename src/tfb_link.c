@@ -202,5 +202,8 @@ uint32_t tfb_link_get_num_transmitted(tfb_link_t *link) {
 }
 
 bool tfb_link_is_transmitted(tfb_link_t *link, uint32_t sendnum) {
+	/*if (link->busy)
+		return false;*/
+
 	return (int32_t)(tfb_link_get_num_transmitted(link)-sendnum)>=0;
 }

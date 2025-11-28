@@ -27,6 +27,7 @@ export default class Bus extends EventEmitter {
 		port.drain=cb=>setTimeout(cb,3);
 		port.flush=cb=>cb();
 		port.read=()=>null;
+		port.settings={baudRate: 9600};
 
 		this.ports.push(port);
 

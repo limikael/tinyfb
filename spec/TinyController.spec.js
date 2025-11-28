@@ -22,8 +22,13 @@ describe("tiny fieldbus controller",()=>{
 		jasmine.clock().tick(500);
 		expect(bus.byte_log.length).toEqual(7);
 		//console.log(bus.byte_log);
-		jasmine.clock().tick(10000);
+		for (let i=0; i<100; i++) {
+			jasmine.clock().tick(100);
+			await Promise.resolve();
+		}
 		//console.log(bus.byte_log);
+
+
 		expect(bus.byte_log.length).toEqual(77);
 
 		//c.close();
